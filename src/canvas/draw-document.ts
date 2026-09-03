@@ -86,6 +86,9 @@ function drawCheckerboard(
   }
 }
 
+/** Document-space slop around a text layer, so near misses still grab it. */
+const TEXT_HIT_PADDING = 6;
+
 export function hitTestLayer(document: Document, docX: number, docY: number): Layer | undefined {
   for (let i = document.layers.length - 1; i >= 0; i -= 1) {
     const layer = document.layers[i];
@@ -98,7 +101,15 @@ export function hitTestLayer(document: Document, docX: number, docY: number): La
     const scaleY = layer.transform.scaleY;
     const width = source.width * scaleX;
     const height = source.height * scaleY;
-    if (docX < x || docY < y || docX > x + width || docY > y + height) continue;
+    // Text rasters sit tight around the glyphs and are mostly transparent
+    // between them, so a per-pixel alpha test makes text slip out from under
+    // the cursor. Text is picked by its whole box, plus a little slop at the
+    // edges, and that box is what both dragging and click-to-edit use.
+    const isText = layer.kind === "text" || layer.role === "text";
+    const pad = isText ? TEXT_HIT_PADDING : 0;
+    if (docX < x - pad || docY < y - pad || docX > x + width + pad || docY > y + height + pad) continue;
+    if (isText) return layer;
+
     const localX = (docX - x) / scaleX;
     const localY = (docY - y) / scaleY;
     if (source instanceof HTMLCanvasElement && sampleCanvasAlpha(source, localX, localY) < 10) {
