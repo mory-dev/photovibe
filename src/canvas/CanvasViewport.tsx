@@ -7,16 +7,20 @@ import { extractFloatingSelection, stampFloatingSelection } from "../engine/pixe
 import { colorToCss } from "../engine/pixels/generate";
 import { strokeBrushes } from "../engine/pixels/paint";
 import { pixelStore } from "../engine/pixels/pixel-store";
+import { hideLayer } from "../engine/document/hide-layer";
+import { textOverlayLayout } from "../engine/pixels/text-metrics";
 import { fillLassoMask, fillRectMask, fillWandMask, flattenDocument, normalizeRect } from "../engine/selections/create-mask";
 import { selectionStore } from "../engine/selections/selection-store";
 import { usePixelGeneration } from "../hooks/use-pixel-generation";
 import { useSelectionGeneration } from "../hooks/use-selection";
+import { pinCursor, readClipboardImage } from "../lib/native";
 import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
 import { useViewportStore } from "../store/viewport-store";
+import { MarchingAntsPolyline } from "./MarchingAntsPolyline";
 import { SelectionOverlay } from "./SelectionOverlay";
-import { drawDocument2D, hitTestLayer } from "./draw-document";
-import { readClipboardImage } from "../lib/native";
+import { drawDocument2D, hitTestLayer, paintDocumentLayers } from "./draw-document";
+import { antsPoints } from "./marching-ants";
 import { documentRect, screenToDocument } from "./viewport";
 
 interface CanvasViewportProps {
@@ -75,6 +79,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   const [cropRect, setCropRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [focusBox, setFocusBox] = useState<{ layerId: string; x: number; y: number; width: number; height: number } | null>(null);
+  const [brushSizing, setBrushSizing] = useState(false);
   const paintingRef = useRef(false);
   const paintRaf = useRef(0);
   const dragRef = useRef<{
@@ -86,6 +91,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     lastDoc?: { x: number; y: number };
     startSize?: number;
     startRect?: { x: number; y: number; width: number; height: number };
+    pinX?: number;
+    pinY?: number;
+    acc?: number;
+    ignoreNext?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -123,17 +132,18 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       canvasEl.height = height;
     }
     const camera = { zoom: viewport.zoom, panX: viewport.panX, panY: viewport.panY };
+    const renderDoc = hideLayer(document, draft?.kind === "text" ? draft.layerId : undefined);
     if (compositorRef.current) {
       try {
-        compositorRef.current.render(document, camera, width, height);
+        compositorRef.current.render(renderDoc, camera, width, height);
         return;
       } catch {
         compositorRef.current = null;
       }
     }
     const ctx = canvasEl.getContext("2d");
-    if (ctx) drawDocument2D(ctx, document, camera, width, height);
-  }, [document, canvasEl, pixels, historyVersion, viewport.zoom, viewport.panX, viewport.panY, viewport.viewSize]);
+    if (ctx) drawDocument2D(ctx, renderDoc, camera, width, height);
+  }, [document, canvasEl, pixels, historyVersion, viewport.zoom, viewport.panX, viewport.panY, viewport.viewSize, draft]);
 
   useEffect(() => {
     if (activeTool === "crop" && document) {
@@ -181,12 +191,13 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const width = canvasEl.width;
     const height = canvasEl.height;
     const camera = { zoom: viewport.zoom, panX: viewport.panX, panY: viewport.panY };
+    const renderDoc = hideLayer(document, draft?.kind === "text" ? draft.layerId : undefined);
     if (compositorRef.current) {
-      compositorRef.current.render(document, camera, width, height);
+      compositorRef.current.render(renderDoc, camera, width, height);
       return;
     }
     const ctx = canvasEl.getContext("2d");
-    if (ctx) drawDocument2D(ctx, document, camera, width, height);
+    if (ctx) drawDocument2D(ctx, renderDoc, camera, width, height);
   }
 
   function schedulePaintFrame(layerId: string) {
@@ -299,7 +310,17 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     if (e.button === 2 && e.altKey && (activeTool === "brush" || activeTool === "eraser" || activeTool === "heal")) {
       const { screen } = toDoc(e);
       setHoverPos(screen);
-      dragRef.current = { kind: "brush-size", lastX: e.clientX, lastY: e.clientY, startSize: brushSize };
+      setBrushSizing(true);
+      dragRef.current = {
+        kind: "brush-size",
+        lastX: e.clientX,
+        lastY: e.clientY,
+        startSize: brushSize,
+        pinX: e.screenX,
+        pinY: e.screenY,
+        acc: 0,
+        ignoreNext: false,
+      };
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
@@ -417,13 +438,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       const flat = flattenDocument(document.width, document.height, (ctx) => {
         ctx.fillStyle = colorToCss(document.backgroundColor);
         ctx.fillRect(0, 0, document.width, document.height);
-        for (const layer of document.layers) {
-          if (!layer.visible || layer.kind === "adjustment") continue;
-          const source = pixelStore.get(layer.id);
-          if (!source) continue;
-          ctx.globalAlpha = layer.opacity;
-          ctx.drawImage(source as CanvasImageSource, layer.transform.x, layer.transform.y);
-        }
+        paintDocumentLayers(ctx, document);
       });
       applySelection("Select", () => fillWandMask(document.width, document.height, flat, docPos.x, docPos.y));
       return;
@@ -443,7 +458,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!document) return;
     const { screen, doc: docPos } = toDoc(e);
-    if (activeTool === "brush" || activeTool === "eraser" || activeTool === "eyedropper" || dragRef.current?.kind === "brush-size") {
+    if (
+      (activeTool === "brush" || activeTool === "eraser" || activeTool === "eyedropper") &&
+      dragRef.current?.kind !== "brush-size"
+    ) {
       setHoverPos(screen);
     }
     if (activeTool === "eyedropper") {
@@ -453,8 +471,15 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const drag = dragRef.current;
     if (!drag) return;
 
-    if (drag.kind === "brush-size" && drag.startSize != null) {
-      setBrushSize(drag.startSize + (e.clientX - drag.lastX) * 0.4);
+    if (drag.kind === "brush-size" && drag.startSize != null && drag.pinX != null && drag.pinY != null) {
+      if (drag.ignoreNext) {
+        drag.ignoreNext = false;
+        return;
+      }
+      drag.acc = (drag.acc ?? 0) + e.movementX * 0.4;
+      setBrushSize(drag.startSize + drag.acc);
+      drag.ignoreNext = true;
+      void pinCursor(drag.pinX, drag.pinY);
       return;
     }
 
@@ -515,6 +540,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   function onPointerUp() {
     const drag = dragRef.current;
     dragRef.current = null;
+    if (drag?.kind === "brush-size") setBrushSizing(false);
     if (!document) return;
 
     if (drag?.kind === "paint") {
@@ -603,8 +629,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
         : activeTool === "wand"
           ? "pv-cursor-wand"
           : "";
-  const cursor = viewport.spaceDown
-    ? "grab"
+  const cursor = brushSizing || viewport.spaceDown
+    ? brushSizing
+      ? "none"
+      : "grab"
     : activeTool === "move"
       ? "move"
       : activeTool === "text"
@@ -627,6 +655,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onPointerLeave={() => {
+        if (brushSizing) return;
         setHoverColor(null);
         setHoverPos(null);
       }}
@@ -719,16 +748,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       )}
       {draft?.kind === "lasso" && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
-          <polyline
-            fill="none"
-            stroke="#fff"
-            strokeWidth="1"
-            strokeDasharray="5 4"
-            className="pv-ants"
-            points={draft.points
-              .map((p) => `${rect.x + p.x * viewport.zoom},${rect.y + p.y * viewport.zoom}`)
-              .join(" ")}
-          />
+          <MarchingAntsPolyline points={antsPoints(draft.points, rect.x, rect.y, viewport.zoom)} />
         </svg>
       )}
       {draft?.kind === "text" && (
@@ -750,12 +770,14 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
           }}
           className="absolute z-20 m-0 border-0 bg-transparent p-0 outline-none"
           style={{
-            left: rect.x + draft.x * viewport.zoom,
-            top: rect.y + draft.y * viewport.zoom,
+            ...textOverlayLayout(rect.x, rect.y, draft.x, draft.y, fontSize, viewport.zoom),
             fontFamily,
-            fontSize: fontSize * viewport.zoom,
-            lineHeight: `${fontSize * 1.2 * viewport.zoom}px`,
-            height: fontSize * 1.2 * viewport.zoom,
+            padding: 0,
+            margin: 0,
+            border: 0,
+            appearance: "none",
+            WebkitAppearance: "none",
+            boxSizing: "content-box",
             color: `rgb(${foreground.r}, ${foreground.g}, ${foreground.b})`,
             caretColor: `rgb(${foreground.r}, ${foreground.g}, ${foreground.b})`,
             minWidth: `${Math.max(12, fontSize * viewport.zoom * 0.4)}px`,

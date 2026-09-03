@@ -104,6 +104,17 @@ export function AppShell() {
     return () => window.clearInterval(timer);
   }, [activeTool, setHoverColor]);
 
+  useEffect(() => {
+    if (activeTool !== "eyedropper") return;
+    function onDown(e: PointerEvent) {
+      const el = e.target as HTMLElement;
+      if (el.closest("button, input, select, textarea, [role='menu'], [role='menuitem'], a")) return;
+      if (hoverColor) setForeground(hoverColor);
+    }
+    window.addEventListener("pointerdown", onDown, true);
+    return () => window.removeEventListener("pointerdown", onDown, true);
+  }, [activeTool, hoverColor, setForeground]);
+
   const handleNewDocument = useCallback(() => {
     setShowNew(true);
   }, []);
@@ -431,7 +442,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="pv-fade-in relative flex h-full flex-col bg-surface-0">
+    <div className={`pv-fade-in relative flex h-full flex-col bg-surface-0 ${activeTool === "eyedropper" ? "pv-cursor-eyedropper" : ""}`}>
       <MenuBar menus={menus} />
       <OptionsBar activeTool={activeTool} />
       <div className="flex min-h-0 flex-1">
@@ -445,14 +456,6 @@ export function AppShell() {
         <InspectorPanel loading={isLoading} />
       </div>
       <StatusBar activeTool={activeTool} zoom={zoom} documentReady={!!document && !isLoading} />
-      {activeTool === "eyedropper" && (
-        <div
-          className="pv-cursor-eyedropper fixed inset-0 z-[70]"
-          onPointerDown={() => {
-            if (hoverColor) setForeground(hoverColor);
-          }}
-        />
-      )}
       {showNew && (
         <NewDocumentDialog
           onCancel={() => setShowNew(false)}

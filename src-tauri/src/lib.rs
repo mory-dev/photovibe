@@ -9,6 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             sample_screen_color,
+            pin_cursor,
             list_system_fonts,
             app_version
         ])
@@ -39,6 +40,34 @@ fn sample_screen_color() -> Result<ScreenColor, String> {
     {
         Err("Screen sampling is only available on Windows".into())
     }
+}
+
+#[tauri::command]
+fn pin_cursor(x: i32, y: i32) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        return windows_pin_cursor(x, y);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (x, y);
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn windows_pin_cursor(x: i32, y: i32) -> Result<(), String> {
+    #[link(name = "user32")]
+    extern "system" {
+        fn SetCursorPos(x: i32, y: i32) -> i32;
+    }
+
+    unsafe {
+        if SetCursorPos(x, y) == 0 {
+            return Err("Could not pin the cursor".into());
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,5 +1,6 @@
 import type { ToolId } from "./Toolbar";
 import { colorToCss } from "../engine/pixels/generate";
+import { formatBrushSize } from "../lib/round-brush-size";
 import { useEditorStore } from "../store/editor-store";
 import { Slider } from "./ui/Slider";
 
@@ -28,7 +29,7 @@ export function OptionsBar({ activeTool }: OptionsBarProps) {
         <label className="flex w-44 items-center gap-2 text-text-muted">
           Size
           <Slider value={brushSize} min={1} max={120} onChange={setBrushSize} className="flex flex-1 items-center" />
-          <span className="w-8 text-text">{brushSize}</span>
+          <span className="w-10 text-text">{formatBrushSize(brushSize)}</span>
         </label>
       )}
       {activeTool === "text" && (

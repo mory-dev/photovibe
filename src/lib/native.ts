@@ -11,6 +11,15 @@ export async function sampleScreenColor(): Promise<Color | null> {
   }
 }
 
+export async function pinCursor(x: number, y: number): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("pin_cursor", { x: Math.round(x), y: Math.round(y) });
+  } catch {
+    // Desktop-only; ignore in browser.
+  }
+}
+
 export async function listSystemFonts(): Promise<string[]> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");

@@ -1,5 +1,7 @@
 import { selectionStore } from "../engine/selections/selection-store";
 import { useSelectionGeneration } from "../hooks/use-selection";
+import { antsPoints } from "./marching-ants";
+import { MarchingAntsPolyline } from "./MarchingAntsPolyline";
 
 interface SelectionOverlayProps {
   viewX: number;
@@ -16,18 +18,22 @@ export function SelectionOverlay({ viewX, viewY, zoom }: SelectionOverlayProps) 
 
   if (!mask && !selectionStore.floating) return null;
 
-  const outlinePoints =
-    path?.kind === "lasso" || path?.kind === "wand"
-      ? path.points
-      : path?.kind === "rect"
-        ? [
-            { x: path.x, y: path.y },
-            { x: path.x + path.width, y: path.y },
-            { x: path.x + path.width, y: path.y + path.height },
-            { x: path.x, y: path.y + path.height },
-            { x: path.x, y: path.y },
-          ]
-        : null;
+  const outlines: Array<Array<{ x: number; y: number }>> =
+    path?.kind === "wand" && path.contours && path.contours.length > 0
+      ? path.contours
+      : path?.kind === "lasso" || path?.kind === "wand"
+        ? [path.points]
+        : path?.kind === "rect"
+          ? [
+              [
+                { x: path.x, y: path.y },
+                { x: path.x + path.width, y: path.y },
+                { x: path.x + path.width, y: path.y + path.height },
+                { x: path.x, y: path.y + path.height },
+                { x: path.x, y: path.y },
+              ],
+            ]
+          : [];
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -55,18 +61,13 @@ export function SelectionOverlay({ viewX, viewY, zoom }: SelectionOverlayProps) 
           }}
         />
       )}
-      {outlinePoints && outlinePoints.length > 1 && (
+      {outlines.length > 0 && (
         <svg className="absolute inset-0 h-full w-full">
-          <polyline
-            fill="none"
-            stroke="#fff"
-            strokeWidth="1"
-            strokeDasharray="5 4"
-            className="pv-ants"
-            points={outlinePoints
-              .map((p) => `${viewX + (p.x + ox) * zoom},${viewY + (p.y + oy) * zoom}`)
-              .join(" ")}
-          />
+          {outlines.map((outline, index) =>
+            outline.length > 1 ? (
+              <MarchingAntsPolyline key={index} points={antsPoints(outline, viewX, viewY, zoom, ox, oy)} />
+            ) : null,
+          )}
         </svg>
       )}
       {selectionStore.floating && (
