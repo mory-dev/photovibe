@@ -92,23 +92,42 @@ for the documentation to start lying.
 
 ## Deployment
 
-Vercel builds the site from this repository with **Root Directory `site`**, and serves it
-at `photovibe.mory.dev`. Because `mory.dev` uses Vercel DNS
-(`ns1.vercel-dns.com` / `ns2.vercel-dns.com`), adding the domain to the project creates the
-record and certificate automatically.
+The site is hosted on **Cloudflare Pages** (project `photovibe`), built from this
+repository by [`.github/workflows/site.yml`](../.github/workflows/site.yml).
 
-Vercel's default *Automatic* ignored-build-step skips a rebuild when a commit touches
-nothing inside `site/`, so ordinary app commits do not redeploy the website.
+- Pull requests touching `site/**` build only, as a gate.
+- Pushes to `master` touching `site/**` build and publish with
+  `wrangler pages deploy dist --project-name=photovibe`.
+
+Two repository secrets are required, on the `production` environment:
+
+| Secret | Where it comes from |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard -> My Profile -> API Tokens, template **Edit Cloudflare Workers**, or a custom token with *Account -> Cloudflare Pages -> Edit* |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard -> Workers & Pages -> Account ID |
+
+### The domain
+
+`mory.dev` is **not** a Cloudflare zone - its nameservers are Vercel's
+(`ns1.vercel-dns.com` / `ns2.vercel-dns.com`). Cloudflare Pages supports custom domains on
+external DNS, so `photovibe.mory.dev` is wired up as:
+
+1. Add `photovibe.mory.dev` as a custom domain on the Pages project.
+2. Add a `CNAME` record in Vercel DNS for `photovibe.mory.dev` pointing at
+   `photovibe.pages.dev`.
+
+Cloudflare then validates ownership over that CNAME and issues the certificate. Nothing
+about the desktop app's release pipeline touches DNS or Cloudflare.
 
 ```
-push to master ─┬─> ci.yml      pnpm test + tsc --noEmit
-                ├─> site.yml    astro build, only when site/** changed
-                └─> Vercel      root=site -> photovibe.mory.dev
+push to master ---+--> ci.yml      pnpm test + tsc --noEmit
+                  +--> site.yml    astro build -> Cloudflare Pages
+                                   (only when site/** changed)
 
-tag v0.1.0 ─────> release.yml   tauri build -> Azure Trusted Signing
-                                -> SHA256SUMS -> GitHub Release
-                                      ^
-                                      └── the download button reads this
+tag v0.1.0 -------> release.yml    tauri build -> Azure Trusted Signing
+                                   -> SHA256SUMS -> GitHub Release
+                                         ^
+                                         +-- the download button reads this
 ```
 
 The download button has no build-time dependency on releases: it fetches

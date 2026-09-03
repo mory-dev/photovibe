@@ -59,7 +59,7 @@ this repository), and publishes it with a `SHA256SUMS` file. See
 ## Website
 
 The site at [photovibe.mory.dev](https://photovibe.mory.dev) lives in [`site/`](site) and is
-deployed by Vercel. Its screenshots are captured from the running editor rather than mocked
+deployed to Cloudflare Pages. Its screenshots are captured from the running editor rather than mocked
 up — see [docs/website.md](docs/website.md).
 
 ## Contributing

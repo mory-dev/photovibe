@@ -1,36 +1,58 @@
 name: Site
 
 # Kept separate from ci.yml so the website and the desktop app can be worked on
-# independently. Vercel deploys the site; this job is the gate that it builds.
+# independently, and so the signed release pipeline in release.yml is untouched.
+# Pull requests build only; pushes to master build and publish to Cloudflare Pages,
+# which serves photovibe.mory.dev.
 on:
   push:
     branches: [master, main]
     paths: ["site/**", ".github/workflows/site.yml"]
   pull_request:
     paths: ["site/**", ".github/workflows/site.yml"]
+  workflow_dispatch:
 
 permissions: {}
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     name: Build website
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'pull_request' && '' || 'production' }}
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: site
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: site/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+
+      - name: Install dependencies
+        working-directory: site
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: site
+        run: pnpm build
+
+      - name: Publish to Cloudflare Pages
+        if: github.event_name != 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: site
+          command: pages deploy dist --project-name=photovibe --branch=master
