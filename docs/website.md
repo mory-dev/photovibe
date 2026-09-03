@@ -99,7 +99,7 @@ repository by [`.github/workflows/site.yml`](../.github/workflows/site.yml).
 - Pushes to `master` touching `site/**` build and publish with
   `wrangler pages deploy dist --project-name=photovibe`.
 
-Two repository secrets are required, on the `production` environment:
+Two repository secrets are required:
 
 | Secret | Where it comes from |
 |---|---|
