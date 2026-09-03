@@ -1,0 +1,84 @@
+---
+import { SITE_NAME, SITE_URL, DESCRIPTION, KEYWORDS } from '../consts';
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Page path, e.g. "/download". Used for the canonical URL. */
+  path?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  /** JSON-LD nodes merged into the site-wide @graph. */
+  schema?: Record<string, unknown>[];
+}
+
+const {
+  title,
+  description = DESCRIPTION,
+  path = Astro.url.pathname,
+  ogImage = '/og.png',
+  noindex = false,
+  schema = [],
+} = Astro.props;
+
+const canonical = new URL(path === '/index' ? '/' : path, SITE_URL).href.replace(/\/$/, '') || SITE_URL;
+const ogImageUrl = new URL(ogImage, SITE_URL).href;
+
+const graph = [
+  {
+    '@type': 'WebSite',
+    '@id': `${SITE_URL}/#website`,
+    url: `${SITE_URL}/`,
+    name: SITE_NAME,
+    description: DESCRIPTION,
+    inLanguage: 'en',
+    publisher: { '@id': `${SITE_URL}/#organization` },
+  },
+  {
+    '@type': 'Organization',
+    '@id': `${SITE_URL}/#organization`,
+    name: SITE_NAME,
+    url: `${SITE_URL}/`,
+    logo: new URL('/logo.png', SITE_URL).href,
+  },
+  ...schema,
+];
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title}</title>
+<meta name="description" content={description} />
+<meta name="keywords" content={KEYWORDS.join(', ')} />
+<link rel="canonical" href={canonical} />
+<meta name="robots" content={noindex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large'} />
+<meta name="generator" content={Astro.generator} />
+<meta name="theme-color" content="#161616" />
+<meta name="color-scheme" content="dark" />
+<meta name="format-detection" content="telephone=no" />
+
+<link rel="icon" type="image/png" href="/favicon.png" />
+<link rel="apple-touch-icon" href="/favicon.png" />
+<link rel="sitemap" href="/sitemap-index.xml" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={ogImageUrl} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={`${SITE_NAME} — ${description}`} />
+<meta property="og:locale" content="en_US" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImageUrl} />
+
+<script
+  type="application/ld+json"
+  is:inline
+  set:html={JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })}
+/>

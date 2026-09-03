@@ -1,0 +1,7 @@
+# Astro build output and generated types
+dist/
+.astro/
+
+# Local review helpers written by scripts
+review.mjs
+check.mjs

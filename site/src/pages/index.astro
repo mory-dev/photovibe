@@ -1,0 +1,293 @@
+---
+import DownloadButton from '../components/DownloadButton.astro';
+import Screenshot from '../components/Screenshot.astro';
+import Base from '../layouts/Base.astro';
+import { BLEND_MODES, COMING_NEXT, DESCRIPTION, REPO_URL, SITE_URL, TOOLS, WORKS_TODAY } from '../consts';
+
+const title = 'Photovibe — a free, open-source Photoshop alternative for Windows';
+
+const schema = [
+  {
+    '@type': 'SoftwareApplication',
+    '@id': `${SITE_URL}/#software`,
+    name: 'Photovibe',
+    url: `${SITE_URL}/`,
+    description: DESCRIPTION,
+    applicationCategory: 'MultimediaApplication',
+    applicationSubCategory: 'Photo editor',
+    operatingSystem: 'Windows 10, Windows 11',
+    softwareVersion: '0.1.0',
+    downloadUrl: `${REPO_URL}/releases/latest`,
+    softwareHelp: `${SITE_URL}/docs`,
+    license: 'https://opensource.org/licenses/MIT',
+    isAccessibleForFree: true,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    featureList: WORKS_TODAY,
+  },
+];
+
+const pillars = [
+  {
+    title: 'Free, for good',
+    body: 'No subscription, no trial, no watermark, no upsell. MIT licensed, so it stays free even for commercial work.',
+  },
+  {
+    title: 'Your photos never leave',
+    body: 'A native desktop app, not a website. Every pixel is processed on your own machine, and it works with the network unplugged.',
+  },
+  {
+    title: 'Instantly familiar',
+    body: 'Tool column, options bar, layers panel, blend modes, the shortcuts you already know. If you have used Photoshop, you can use this.',
+  },
+  {
+    title: 'Small and fast',
+    body: 'A few megabytes, installed for your user only, with no admin rights, no background service and no updater daemon.',
+  },
+];
+---
+
+<Base {title} description={DESCRIPTION} {schema}>
+  <!-- Hero -->
+  <section class="pv-glow relative overflow-hidden">
+    <div class="pv-grid absolute inset-0" aria-hidden="true"></div>
+    <div class="relative mx-auto max-w-6xl px-5 pb-16 pt-20 text-center sm:pt-28">
+      <p class="inline-flex items-center gap-2 rounded-full border border-border bg-surface-1/70 px-3.5 py-1 text-xs text-text-muted">
+        <span class="inline-block h-1.5 w-1.5 rounded-full bg-accent"></span>
+        Open source · MIT · Windows
+      </p>
+
+      <h1 class="mx-auto mt-6 max-w-4xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight sm:text-6xl">
+        A free, open-source
+        <span class="text-accent">Photoshop alternative</span>
+        that runs on your machine
+      </h1>
+
+      <p class="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-text-muted">
+        Photovibe is a local-first photo editor for Windows. Layers, blend modes, selections
+        and a dark, familiar interface — with no account, no cloud and no subscription.
+      </p>
+
+      <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+        <DownloadButton />
+        <a
+          href="/photoshop-alternative"
+          class="inline-flex items-center justify-center rounded-lg border border-border-strong px-5 py-2.5 text-sm font-medium transition-colors hover:border-accent-muted hover:text-accent"
+        >
+          How it compares
+        </a>
+      </div>
+      <p class="mt-4 text-xs text-text-muted">
+        Free forever · <span data-latest-version>Early release</span> ·
+        <a class="underline underline-offset-2 hover:text-accent" href="/docs/install-and-verify">Signed &amp; verifiable</a>
+      </p>
+
+      <Screenshot
+        name="hero"
+        alt="The Photovibe photo editor on Windows: menu bar, tool column, canvas with a landscape photo open, and the properties and layers panels"
+        priority
+        class="mt-14"
+      />
+    </div>
+  </section>
+
+  <!-- Pillars -->
+  <section class="mx-auto max-w-6xl px-5 py-20">
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {pillars.map((pillar) => (
+        <div class="rounded-xl border border-border bg-surface-1 p-5">
+          <h2 class="text-base font-semibold">{pillar.title}</h2>
+          <p class="mt-2 text-sm leading-relaxed text-text-muted">{pillar.body}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Layers -->
+  <section class="mx-auto max-w-6xl px-5 py-10">
+    <div class="grid items-center gap-12 lg:grid-cols-2">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-accent">Layers</p>
+        <h2 class="mt-3 text-3xl font-semibold tracking-tight">
+          Stack it, blend it, take it back
+        </h2>
+        <p class="mt-4 leading-relaxed text-text-muted">
+          Every document is a stack of image, paint, fill and text layers, each with its own
+          opacity and blend mode, composited on your GPU by a custom WebGL engine. Tint a
+          photo with a fill layer on Overlay, dial the opacity to taste, and delete it again
+          — the original pixels are never touched.
+        </p>
+        <ul class="mt-6 flex flex-wrap gap-2">
+          {BLEND_MODES.map((mode) => (
+            <li class="rounded-md border border-border bg-surface-1 px-2.5 py-1 text-xs text-text-muted">
+              {mode}
+            </li>
+          ))}
+        </ul>
+        <a
+          href="/docs/layers-and-blend-modes"
+          class="mt-6 inline-flex text-sm text-accent hover:underline"
+        >
+          All thirteen blend modes, explained →
+        </a>
+      </div>
+      <Screenshot
+        name="layers"
+        alt="Photovibe layers panel showing a fill layer set to Overlay at 62% opacity above a photo layer"
+      />
+    </div>
+  </section>
+
+  <!-- Selections -->
+  <section class="mx-auto max-w-6xl px-5 py-10">
+    <div class="grid items-center gap-12 lg:grid-cols-2">
+      <Screenshot
+        name="selections"
+        alt="A rectangular marquee selection with animated marching ants over a landscape photo in Photovibe"
+        class="lg:order-2"
+      />
+      <div class="lg:order-1">
+        <p class="text-xs font-semibold uppercase tracking-wider text-accent">Selections</p>
+        <h2 class="mt-3 text-3xl font-semibold tracking-tight">
+          Work on part of the picture
+        </h2>
+        <p class="mt-4 leading-relaxed text-text-muted">
+          Drag a rectangle, draw a freehand lasso, or click with the magic wand to grab a
+          contiguous region of colour. Paint, erase and gradients are clipped to whatever is
+          selected, and the Move tool can lift the selected pixels straight off the layer.
+        </p>
+        <a href="/docs/selections" class="mt-6 inline-flex text-sm text-accent hover:underline">
+          Read the selections guide →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tools -->
+  <section class="mx-auto max-w-6xl px-5 py-20">
+    <div class="max-w-2xl">
+      <p class="text-xs font-semibold uppercase tracking-wider text-accent">Toolbox</p>
+      <h2 class="mt-3 text-3xl font-semibold tracking-tight">Twelve tools, one key each</h2>
+      <p class="mt-4 leading-relaxed text-text-muted">
+        The shortcuts are the ones already in your fingers.
+      </p>
+    </div>
+
+    <ul class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {TOOLS.map((toolItem) => (
+        <li class="rounded-xl border border-border bg-surface-1 p-4">
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-sm font-semibold">{toolItem.name}</h3>
+            <kbd class="rounded border border-border-strong bg-surface-2 px-1.5 text-[11px] text-text-muted">
+              {toolItem.key}
+            </kbd>
+          </div>
+          <p class="mt-1.5 text-sm leading-relaxed text-text-muted">{toolItem.blurb}</p>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- Honest status -->
+  <section class="border-y border-border bg-surface-1">
+    <div class="mx-auto max-w-6xl px-5 py-20">
+      <div class="max-w-2xl">
+        <p class="text-xs font-semibold uppercase tracking-wider text-accent">Where it stands</p>
+        <h2 class="mt-3 text-3xl font-semibold tracking-tight">
+          Photovibe is early. Here is exactly how early.
+        </h2>
+        <p class="mt-4 leading-relaxed text-text-muted">
+          Plenty of free editors oversell themselves. This is the honest version: if a menu
+          entry is greyed out in the app, it is on the right-hand list, not the left.
+        </p>
+      </div>
+
+      <div class="mt-10 grid gap-8 lg:grid-cols-2">
+        <div class="rounded-xl border border-border bg-surface-0 p-6">
+          <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-accent">
+            Works today
+          </h3>
+          <ul class="mt-4 space-y-2.5">
+            {WORKS_TODAY.map((item) => (
+              <li class="flex gap-3 text-sm leading-relaxed text-text-muted">
+                <svg class="mt-0.5 h-4 w-4 shrink-0 text-accent" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 1 1 1.4-1.4l2.8 2.8 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd" />
+                </svg>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div class="rounded-xl border border-border bg-surface-0 p-6">
+          <h3 class="text-sm font-semibold uppercase tracking-wider text-text-muted">
+            Not yet — on the roadmap
+          </h3>
+          <ul class="mt-4 space-y-2.5">
+            {COMING_NEXT.map((item) => (
+              <li class="flex gap-3 text-sm leading-relaxed text-text-muted">
+                <svg class="mt-0.5 h-4 w-4 shrink-0 text-text-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm.75-12a.75.75 0 0 0-1.5 0v4c0 .3.17.56.44.68l2.5 1.25a.75.75 0 1 0 .67-1.34l-2.11-1.06V6Z" clip-rule="evenodd" />
+                </svg>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <a href="/docs/roadmap" class="mt-5 inline-flex text-sm text-accent hover:underline">
+            Full roadmap →
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust -->
+  <section class="mx-auto max-w-6xl px-5 py-20">
+    <div class="grid items-center gap-12 lg:grid-cols-2">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-accent">Trust</p>
+        <h2 class="mt-3 text-3xl font-semibold tracking-tight">
+          Built in the open, signed in CI
+        </h2>
+        <p class="mt-4 leading-relaxed text-text-muted">
+          Every Windows release is built by GitHub Actions from a public, tagged commit, then
+          Authenticode-signed with a public-trust certificate through Azure Trusted Signing.
+          Authentication uses GitHub OIDC, so no long-lived signing credential exists anywhere
+          in the repository — and each release ships a <code class="rounded bg-surface-2 px-1 py-0.5 text-[0.85em]">SHA256SUMS</code>
+          file so you can check the download yourself.
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a href="/docs/install-and-verify" class="text-sm text-accent hover:underline">
+            How to verify a download →
+          </a>
+          <a href={REPO_URL} rel="noopener" class="text-sm text-accent hover:underline">
+            Read the source →
+          </a>
+        </div>
+      </div>
+      <Screenshot
+        name="about"
+        alt="The About Photovibe dialog showing the version number and an update check against GitHub Releases"
+      />
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="mx-auto max-w-4xl px-5 pb-8 text-center">
+    <div class="rounded-2xl border border-border bg-surface-1 px-6 py-14">
+      <h2 class="text-3xl font-semibold tracking-tight">Open a photo in about a minute</h2>
+      <p class="mx-auto mt-3 max-w-xl text-text-muted">
+        A few megabytes, no account, no admin rights. If you do not like it, uninstalling
+        leaves nothing behind.
+      </p>
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <DownloadButton />
+        <a
+          href="/docs/getting-started"
+          class="inline-flex items-center justify-center rounded-lg border border-border-strong px-5 py-2.5 text-sm font-medium transition-colors hover:border-accent-muted hover:text-accent"
+        >
+          Read the docs
+        </a>
+      </div>
+    </div>
+  </section>
+</Base>

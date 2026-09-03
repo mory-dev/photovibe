@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* Palette mirrors the app's own theme (src/index.css) so the site and the
+   product read as one thing. */
+@theme {
+  --color-surface-0: #161616;
+  --color-surface-1: #1a1a1a;
+  --color-surface-2: #242424;
+  --color-surface-3: #2e2e2e;
+  --color-border: #303030;
+  --color-border-strong: #3a3a3a;
+  --color-text: #e8e8e8;
+  --color-text-muted: #8f8f8f;
+  --color-accent: #c4a574;
+  --color-accent-hover: #d4b88a;
+  --color-accent-muted: #8a7355;
+
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-0);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--color-accent-muted);
+  color: #fff;
+}
+
+/* Subtle warm glow behind the hero, echoing the app's accent. */
+.pv-glow {
+  background:
+    radial-gradient(60rem 30rem at 50% -10%, rgba(196, 165, 116, 0.13), transparent 65%),
+    radial-gradient(40rem 24rem at 85% 8%, rgba(196, 165, 116, 0.06), transparent 70%);
+}
+
+.pv-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(48rem 28rem at 50% 0%, #000 20%, transparent 78%);
+}
+
+/* Long-form prose inside docs pages. */
+.prose {
+  color: var(--color-text);
+  line-height: 1.7;
+}
+.prose > * + * { margin-top: 1.05rem; }
+.prose h2 {
+  margin-top: 2.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 5rem;
+}
+.prose h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  scroll-margin-top: 5rem;
+}
+.prose p, .prose li { color: #cfcfcf; }
+.prose a {
+  color: var(--color-accent);
+  text-underline-offset: 3px;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.prose a:hover { color: var(--color-accent-hover); }
+.prose ul, .prose ol { padding-left: 1.25rem; }
+.prose ul { list-style: disc; }
+.prose ol { list-style: decimal; }
+.prose li + li { margin-top: 0.35rem; }
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.prose pre {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.prose blockquote {
+  border-left: 2px solid var(--color-accent-muted);
+  padding-left: 1rem;
+  color: var(--color-text-muted);
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  display: block;
+  overflow-x: auto;
+}
+.prose th, .prose td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.prose kbd {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.12em 0.4em;
+  white-space: nowrap;
+}
+.prose hr { border: 0; border-top: 1px solid var(--color-border); margin: 2rem 0; }

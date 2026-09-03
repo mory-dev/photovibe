@@ -1,0 +1,316 @@
+---
+import DownloadButton from '../components/DownloadButton.astro';
+import Screenshot from '../components/Screenshot.astro';
+import Base from '../layouts/Base.astro';
+import { COMPARISON_FAQ } from '../faq';
+import { SITE_URL } from '../consts';
+
+const title = 'Free open-source Photoshop alternative for Windows — Photovibe';
+const description =
+  'An honest comparison of Photovibe with Photoshop, GIMP and Photopea. Free, open source, offline, no subscription and no account — plus a straight account of what Photovibe cannot do yet.';
+
+const schema = [
+  {
+    '@type': 'FAQPage',
+    '@id': `${SITE_URL}/photoshop-alternative#faq`,
+    mainEntity: COMPARISON_FAQ.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  },
+  {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Photoshop alternative',
+        item: `${SITE_URL}/photoshop-alternative`,
+      },
+    ],
+  },
+];
+
+const YES = 'yes';
+const NO = 'no';
+const PART = 'part';
+
+const columns = ['Photovibe', 'Adobe Photoshop', 'GIMP', 'Photopea'];
+
+const rows: { label: string; cells: [string, string][] }[] = [
+  {
+    label: 'Price',
+    cells: [
+      [YES, 'Free'],
+      [NO, 'Subscription'],
+      [YES, 'Free'],
+      [PART, 'Free with ads'],
+    ],
+  },
+  {
+    label: 'Open source',
+    cells: [
+      [YES, 'MIT'],
+      [NO, 'Proprietary'],
+      [YES, 'GPL'],
+      [NO, 'Proprietary'],
+    ],
+  },
+  {
+    label: 'Account required',
+    cells: [
+      [YES, 'None'],
+      [NO, 'Adobe ID'],
+      [YES, 'None'],
+      [YES, 'None'],
+    ],
+  },
+  {
+    label: 'Works offline',
+    cells: [
+      [YES, 'Fully'],
+      [PART, 'Periodic check-in'],
+      [YES, 'Fully'],
+      [NO, 'Browser-based'],
+    ],
+  },
+  {
+    label: 'Photos stay on your machine',
+    cells: [
+      [YES, 'Always'],
+      [PART, 'Cloud optional'],
+      [YES, 'Always'],
+      [PART, 'In-browser'],
+    ],
+  },
+  {
+    label: 'Install size',
+    cells: [
+      [YES, 'A few MB'],
+      [NO, 'Multiple GB'],
+      [PART, '~500 MB'],
+      [YES, 'Nothing to install'],
+    ],
+  },
+  {
+    label: 'Layers and blend modes',
+    cells: [
+      [YES, '13 modes'],
+      [YES, 'Full'],
+      [YES, 'Full'],
+      [YES, 'Full'],
+    ],
+  },
+  {
+    label: 'Layer masks',
+    cells: [
+      [NO, 'Planned'],
+      [YES, 'Yes'],
+      [YES, 'Yes'],
+      [YES, 'Yes'],
+    ],
+  },
+  {
+    label: 'Adjustment layers',
+    cells: [
+      [NO, 'Planned'],
+      [YES, 'Yes'],
+      [PART, 'Limited'],
+      [YES, 'Yes'],
+    ],
+  },
+  {
+    label: 'Filters',
+    cells: [
+      [NO, 'Planned'],
+      [YES, 'Extensive'],
+      [YES, 'Extensive'],
+      [YES, 'Many'],
+    ],
+  },
+  {
+    label: 'PSD support',
+    cells: [
+      [NO, 'Planned'],
+      [YES, 'Native'],
+      [YES, 'Import'],
+      [YES, 'Import/export'],
+    ],
+  },
+  {
+    label: 'Platforms',
+    cells: [
+      [PART, 'Windows'],
+      [YES, 'Win, macOS'],
+      [YES, 'Win, mac, Linux'],
+      [YES, 'Any browser'],
+    ],
+  },
+];
+
+const mark = {
+  [YES]: { icon: '✓', klass: 'text-accent' },
+  [NO]: { icon: '✕', klass: 'text-text-muted' },
+  [PART]: { icon: '◐', klass: 'text-text-muted' },
+} as const;
+---
+
+<Base {title} {description} {schema}>
+  <article class="mx-auto max-w-4xl px-5 py-16">
+    <nav aria-label="Breadcrumb" class="text-xs text-text-muted">
+      <a class="hover:text-accent" href="/">Home</a>
+      <span class="px-1.5">/</span>
+      <span class="text-text">Photoshop alternative</span>
+    </nav>
+
+    <h1 class="mt-4 text-balance text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+      A free, open-source Photoshop alternative for Windows
+    </h1>
+
+    <p class="mt-6 text-lg leading-relaxed text-text-muted">
+      Photoshop is only sold by subscription now, so a lot of people go looking for a free
+      replacement — and find a choice between huge downloads, unfamiliar interfaces, or a
+      browser tab that uploads their photos to someone else's server. Photovibe is the small
+      option: a few megabytes, layer-based, familiar, entirely local, and MIT licensed.
+    </p>
+
+    <p class="mt-4 leading-relaxed text-text-muted">
+      This page compares it honestly with the alternatives, including the parts where
+      Photovibe loses.
+    </p>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+      <DownloadButton />
+      <a
+        href="/docs/roadmap"
+        class="inline-flex items-center justify-center rounded-lg border border-border-strong px-5 py-2.5 text-sm font-medium transition-colors hover:border-accent-muted hover:text-accent"
+      >
+        What works today
+      </a>
+    </div>
+
+    <Screenshot
+      name="hero"
+      alt="Photovibe running on Windows with a landscape photo open, showing the tool column, canvas, properties and layers panels"
+      class="mt-12"
+      caption="Photovibe on Windows — the layout will look familiar if you have used Photoshop."
+    />
+
+    <!-- Comparison table -->
+    <h2 class="mt-16 text-2xl font-semibold tracking-tight">
+      Photovibe vs Photoshop vs GIMP vs Photopea
+    </h2>
+    <p class="mt-3 text-sm text-text-muted">
+      ✓ yes · ◐ partly · ✕ no. Accurate as of the current Photovibe release.
+    </p>
+
+    <div class="mt-6 overflow-x-auto rounded-xl border border-border">
+      <table class="w-full min-w-[46rem] border-collapse text-sm">
+        <caption class="sr-only">
+          Feature comparison of Photovibe, Adobe Photoshop, GIMP and Photopea
+        </caption>
+        <thead>
+          <tr class="bg-surface-2">
+            <th scope="col" class="px-4 py-3 text-left font-semibold">Feature</th>
+            {columns.map((column) => (
+              <th
+                scope="col"
+                class:list={[
+                  'px-4 py-3 text-left font-semibold',
+                  column === 'Photovibe' && 'text-accent',
+                ]}
+              >
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr class="border-t border-border bg-surface-1">
+              <th scope="row" class="px-4 py-3 text-left font-medium">{row.label}</th>
+              {row.cells.map(([state, label]) => (
+                <td class="px-4 py-3 text-text-muted">
+                  <span class={`mr-1.5 ${mark[state as keyof typeof mark].klass}`} aria-hidden="true">
+                    {mark[state as keyof typeof mark].icon}
+                  </span>
+                  {label}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prose mt-14">
+      <h2>When Photovibe is the right choice</h2>
+      <p>
+        Pick Photovibe if you want to crop, resize, retouch, paint, add text and blend a few
+        layers without installing several gigabytes or signing into anything. It starts fast,
+        stays out of the way, and the whole program is small enough to read.
+      </p>
+      <p>
+        It is also the right choice if privacy is the deciding factor. There is no cloud
+        component to opt out of, because there is no cloud component. Unplug the network and
+        everything still works.
+      </p>
+
+      <h2>When it is not</h2>
+      <p>
+        If you need layer masks, adjustment layers, filters, or to open a PSD someone sent
+        you, Photovibe cannot do that yet, and pretending otherwise would waste your time.
+        Today:
+      </p>
+      <ul>
+        <li><strong>Need PSD compatibility?</strong> Photopea reads and writes PSD in a browser tab.</li>
+        <li><strong>Need maximum features for free?</strong> GIMP is the most complete open source image editor there is.</li>
+        <li><strong>Painting and illustration?</strong> Krita is built for exactly that.</li>
+        <li><strong>Professional print or client work?</strong> Photoshop is still Photoshop.</li>
+      </ul>
+      <p>
+        Those gaps are tracked openly on the <a href="/docs/roadmap">roadmap</a>, which lists
+        every greyed-out menu item in the app.
+      </p>
+
+      <h2>What "open source" buys you here</h2>
+      <p>
+        Photovibe is MIT licensed — read it, fork it, ship your own build, use it inside
+        commercial products. Practically, it also means you can verify the claims on this
+        page rather than take them on faith: the editor is
+        <a href="https://github.com/mory-dev/photovibe">public on GitHub</a>, releases are
+        built by CI from tagged commits, and each installer is Authenticode-signed via Azure
+        Trusted Signing with a published SHA-256 hash. If it made a network request, you could
+        find it in the source.
+      </p>
+    </div>
+
+    <!-- FAQ -->
+    <h2 class="mt-16 text-2xl font-semibold tracking-tight">Frequently asked questions</h2>
+    <div class="mt-6 space-y-3">
+      {COMPARISON_FAQ.map((item, i) => (
+        <details class="group rounded-xl border border-border bg-surface-1 px-5" open={i === 0}>
+          <summary class="cursor-pointer list-none py-4 text-sm font-medium marker:hidden">
+            <span class="flex items-start justify-between gap-4">
+              {item.q}
+              <span class="mt-0.5 shrink-0 text-text-muted transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+            </span>
+          </summary>
+          <p class="pb-5 text-sm leading-relaxed text-text-muted">{item.a}</p>
+        </details>
+      ))}
+    </div>
+
+    <div class="mt-16 rounded-2xl border border-border bg-surface-1 px-6 py-12 text-center">
+      <h2 class="text-2xl font-semibold tracking-tight">Try it — it takes a minute</h2>
+      <p class="mx-auto mt-3 max-w-lg text-text-muted">
+        Free forever, no account, and uninstalling leaves nothing behind.
+      </p>
+      <div class="mt-7 flex justify-center">
+        <DownloadButton />
+      </div>
+    </div>
+  </article>
+</Base>

@@ -1,0 +1,32 @@
+---
+interface Props {
+  /** Base name in /public/screenshots, e.g. "hero". */
+  name: string;
+  alt: string;
+  caption?: string;
+  priority?: boolean;
+  class?: string;
+}
+
+const { name, alt, caption, priority = false, class: className = '' } = Astro.props;
+---
+
+<figure class:list={['not-prose', className]}>
+  <div class="overflow-hidden rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/50">
+    <img
+      src={`/screenshots/${name}.webp`}
+      srcset={`/screenshots/${name}.webp 1440w, /screenshots/${name}@2x.webp 2880w`}
+      sizes="(max-width: 1100px) 100vw, 1100px"
+      alt={alt}
+      width="1440"
+      height="900"
+      decoding={priority ? 'sync' : 'async'}
+      loading={priority ? 'eager' : 'lazy'}
+      fetchpriority={priority ? 'high' : 'auto'}
+      class="block w-full"
+    />
+  </div>
+  {caption && (
+    <figcaption class="mt-3 text-center text-sm text-text-muted">{caption}</figcaption>
+  )}
+</figure>

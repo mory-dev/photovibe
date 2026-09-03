@@ -1,0 +1,124 @@
+---
+import { getCollection } from 'astro:content';
+import Base from './Base.astro';
+import { SITE_URL } from '../consts';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Collection id of the current doc, or undefined on the docs index. */
+  current?: string;
+}
+
+const { title, description, current } = Astro.props;
+
+const docs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+const index = docs.findIndex((doc) => doc.id === current);
+const previous = index > 0 ? docs[index - 1] : undefined;
+const next = index >= 0 && index < docs.length - 1 ? docs[index + 1] : undefined;
+
+const schema = [
+  {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
+      { '@type': 'ListItem', position: 2, name: 'Docs', item: `${SITE_URL}/docs` },
+      ...(current
+        ? [{ '@type': 'ListItem', position: 3, name: title, item: `${SITE_URL}/docs/${current}` }]
+        : []),
+    ],
+  },
+  ...(current
+    ? [
+        {
+          '@type': 'TechArticle',
+          headline: title,
+          description,
+          url: `${SITE_URL}/docs/${current}`,
+          inLanguage: 'en',
+          isPartOf: { '@id': `${SITE_URL}/#website` },
+        },
+      ]
+    : []),
+];
+---
+
+<Base title={`${title} — Photovibe docs`} {description} {schema}>
+  <div class="mx-auto flex max-w-6xl gap-12 px-5 py-12">
+    <nav
+      aria-label="Documentation"
+      class="sticky top-20 hidden h-fit w-56 shrink-0 lg:block"
+    >
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Documentation
+      </h2>
+      <ul class="mt-4 space-y-0.5">
+        {docs.map((doc) => (
+          <li>
+            <a
+              href={`/docs/${doc.id}`}
+              aria-current={doc.id === current ? 'page' : undefined}
+              class:list={[
+                'block rounded-md px-3 py-1.5 text-sm transition-colors',
+                doc.id === current
+                  ? 'bg-surface-2 text-accent'
+                  : 'text-text-muted hover:bg-surface-1 hover:text-text',
+              ]}
+            >
+              {doc.data.title}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <article class="min-w-0 flex-1">
+      <nav aria-label="Breadcrumb" class="text-xs text-text-muted">
+        <a class="hover:text-accent" href="/">Home</a>
+        <span class="px-1.5">/</span>
+        <a class="hover:text-accent" href="/docs">Docs</a>
+        {current && (
+          <>
+            <span class="px-1.5">/</span>
+            <span class="text-text">{title}</span>
+          </>
+        )}
+      </nav>
+
+      <h1 class="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
+      <p class="mt-3 text-lg leading-relaxed text-text-muted">{description}</p>
+
+      <div class="prose mt-10">
+        <slot />
+      </div>
+
+      {(previous || next) && (
+        <nav
+          aria-label="Pagination"
+          class="mt-16 grid gap-3 border-t border-border pt-6 sm:grid-cols-2"
+        >
+          {previous ? (
+            <a
+              href={`/docs/${previous.id}`}
+              class="rounded-lg border border-border p-4 transition-colors hover:border-border-strong"
+            >
+              <span class="text-xs text-text-muted">Previous</span>
+              <span class="mt-1 block text-sm text-accent">{previous.data.title}</span>
+            </a>
+          ) : (
+            <span></span>
+          )}
+          {next && (
+            <a
+              href={`/docs/${next.id}`}
+              class="rounded-lg border border-border p-4 text-right transition-colors hover:border-border-strong sm:col-start-2"
+            >
+              <span class="text-xs text-text-muted">Next</span>
+              <span class="mt-1 block text-sm text-accent">{next.data.title}</span>
+            </a>
+          )}
+        </nav>
+      )}
+    </article>
+  </div>
+</Base>

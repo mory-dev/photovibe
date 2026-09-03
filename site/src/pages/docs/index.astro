@@ -1,0 +1,33 @@
+---
+import { getCollection } from 'astro:content';
+import Doc from '../../layouts/Doc.astro';
+
+const docs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<Doc
+  title="Photovibe documentation"
+  description="Everything about using Photovibe: the workspace, all twelve tools and their shortcuts, layers and blend modes, selections, verifying a signed download, and building from source."
+>
+  <ul class="not-prose grid gap-4 sm:grid-cols-2">
+    {docs.map((doc) => (
+      <li>
+        <a
+          href={`/docs/${doc.id}`}
+          class="block h-full rounded-xl border border-border bg-surface-1 p-5 transition-colors hover:border-accent-muted"
+        >
+          <h2 class="text-base font-semibold text-accent">{doc.data.title}</h2>
+          <p class="mt-2 text-sm leading-relaxed text-text-muted">{doc.data.description}</p>
+        </a>
+      </li>
+    ))}
+  </ul>
+
+  <h2>Something missing?</h2>
+  <p>
+    If the docs do not answer your question, that is a documentation bug worth reporting.
+    Open an issue at
+    <a href="https://github.com/mory-dev/photovibe/issues">github.com/mory-dev/photovibe/issues</a>
+    and it will get written up.
+  </p>
+</Doc>

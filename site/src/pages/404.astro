@@ -1,0 +1,31 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base
+  title="Page not found — Photovibe"
+  description="That page does not exist. Head back to the Photovibe home page or the documentation."
+  noindex
+>
+  <section class="mx-auto max-w-xl px-5 py-32 text-center">
+    <p class="text-sm font-semibold uppercase tracking-wider text-accent">404</p>
+    <h1 class="mt-3 text-4xl font-semibold tracking-tight">This page does not exist</h1>
+    <p class="mt-4 leading-relaxed text-text-muted">
+      The link may be out of date, or the page may have moved.
+    </p>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a
+        href="/"
+        class="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-[#1a1a1a] transition-colors hover:bg-accent-hover"
+      >
+        Go home
+      </a>
+      <a
+        href="/docs"
+        class="inline-flex items-center justify-center rounded-lg border border-border-strong px-5 py-2.5 text-sm font-medium transition-colors hover:border-accent-muted hover:text-accent"
+      >
+        Browse the docs
+      </a>
+    </div>
+  </section>
+</Base>
