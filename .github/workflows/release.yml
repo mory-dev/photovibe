@@ -1,0 +1,125 @@
+name: Build and release Photovibe
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semver release version, for example 0.1.0
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+
+jobs:
+  build:
+    name: Build Windows
+    runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install project dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set release version
+        shell: bash
+        run: node scripts/set-version.mjs "${RELEASE_VERSION#v}"
+
+      - name: Build Tauri installer
+        run: pnpm tauri build --bundles nsis
+
+      - name: Find Windows installer
+        id: artifact
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch 'uninstall' } |
+            Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer was not produced.' }
+          "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          "filename=$($installer.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticode sign Windows installer
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files: ${{ steps.artifact.outputs.installer }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Stage release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-staged | Out-Null
+          Copy-Item -LiteralPath '${{ steps.artifact.outputs.installer }}' -Destination release-staged/
+          Get-FileHash -Algorithm SHA256 -LiteralPath '${{ steps.artifact.outputs.installer }}' |
+            ForEach-Object { "$($_.Hash.ToLowerInvariant())  ${{ steps.artifact.outputs.filename }}" } |
+            Set-Content -LiteralPath release-staged/SHA256SUMS
+
+      - name: Upload staged release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: release-staged/
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: release-artifacts
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          release_tag="v${RELEASE_VERSION#v}"
+          if ! gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$release_tag" --repo "$GITHUB_REPOSITORY" --title "$release_tag" --generate-notes
+          fi
+          gh release upload "$release_tag" release-artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
