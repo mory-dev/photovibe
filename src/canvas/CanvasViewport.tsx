@@ -52,6 +52,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   const beginStroke = useDocumentStore((s) => s.beginStroke);
   const touchPixels = useDocumentStore((s) => s.touchPixels);
   const ensurePaintLayer = useDocumentStore((s) => s.ensurePaintLayer);
+  const expandLayerToDocument = useDocumentStore((s) => s.expandLayerToDocument);
   const addTextLayer = useDocumentStore((s) => s.addTextLayer);
   const updateTextLayer = useDocumentStore((s) => s.updateTextLayer);
   const undo = useDocumentStore((s) => s.undo);
@@ -346,7 +347,12 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const target = activeLayer && activeLayer.kind !== "adjustment" ? activeLayer : undefined;
     if (target && !selectionStore.floating) {
       beginStroke("Move selection");
-      extractFloatingSelection(target);
+      // The floating pixels are stamped back onto this layer, so its canvas has
+      // to cover the document first - otherwise anything dragged beyond the
+      // layer's own bounds is clipped away on drop.
+      const prepared = expandLayerToDocument(target.id) ?? target;
+      if (prepared.kind === "adjustment") return;
+      extractFloatingSelection(prepared);
       touchPixels();
     }
   }

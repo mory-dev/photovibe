@@ -65,6 +65,7 @@ interface DocumentStore {
   beginStroke: (label: string) => void;
   touchPixels: () => void;
   ensurePaintLayer: () => string | null;
+  expandLayerToDocument: (layerId: string) => Layer | null;
   addImageLayer: (file: File | Blob, name?: string) => Promise<void>;
   addTextLayer: (x: number, y: number, text: string, fontFamily: string, fontSize: number, color: Color) => void;
   updateTextLayer: (layerId: string, text: string, fontFamily: string, fontSize: number, color: Color) => void;
@@ -365,6 +366,33 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
         selectionStore.clear();
         return cropDocument(document, bounds);
       });
+    },
+
+    /**
+     * Grows a layer's canvas to cover the document and folds its offset into
+     * the pixels. Moving a selection stamps the floating pixels back onto this
+     * canvas, so anything landing outside its bounds would otherwise be
+     * silently clipped away.
+     */
+    expandLayerToDocument: (layerId) => {
+      const document = get().document;
+      if (!document) return null;
+      const layer = document.layers.find((item) => item.id === layerId);
+      if (!layer || layer.kind === "adjustment") return null;
+
+      const source = pixelStore.get(layerId);
+      if (!source || !("width" in source)) return layer;
+
+      const identity = layer.transform.x === 0 && layer.transform.y === 0;
+      if (identity && source.width === document.width && source.height === document.height) return layer;
+
+      const full = createTransparentCanvas(document.width, document.height);
+      full.getContext("2d")?.drawImage(source as CanvasImageSource, layer.transform.x, layer.transform.y);
+      assignLayerPixels(layerId, full);
+
+      const next = layerOps.updateLayer(document, layerId, { transform: { ...DEFAULT_TRANSFORM } });
+      set({ document: next, dirty: true });
+      return next.layers.find((item) => item.id === layerId) ?? null;
     },
 
     ensurePaintLayer: () => {

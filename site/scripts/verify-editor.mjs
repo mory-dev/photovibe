@@ -423,6 +423,49 @@ const checks = {
     const [restored] = await samplePixels(page, [[0.45, 0.5]]);
     return isDark(restored) ? [] : ['undo did not restore the erased pixels'];
   },
+  /**
+   * Moving a chunk beyond the source layer's own canvas bounds must keep it.
+   * The sample overlay's canvas is far smaller than the document, so dragging
+   * part of it away used to stamp the pixels outside the canvas and lose them.
+   */
+  async 'selection-move-offcanvas'(page) {
+    await tool(page, 'Marquee');
+    await drag(page, [0.40, 0.36], [0.50, 0.50]);
+    const [before] = await samplePixels(page, [[0.46, 0.45]]);
+
+    await tool(page, 'Cursor');
+    await drag(page, [0.45, 0.43], [0.25, 0.25]);
+
+    const [origin, destination] = await samplePixels(page, [[0.46, 0.45], [0.26, 0.27]]);
+    const near = (a, b) => Math.abs(a.r - b.r) < 12 && Math.abs(a.g - b.g) < 12 && Math.abs(a.b - b.b) < 12;
+    const white = (c) => c.r > 245 && c.g > 245 && c.b > 245;
+
+    const problems = [];
+    if (white(before)) return ['the selection did not cover any of the sample overlay'];
+    if (!white(origin)) problems.push('the moved pixels were left behind at the origin');
+    if (!near(destination, before)) problems.push('the moved pixels were lost instead of landing at the drop point');
+    return problems;
+  },
+
+  /** A selection can be picked up and moved again, so the hit test agrees with the ants. */
+  async 'selection-move-twice'(page) {
+    await tool(page, 'Marquee');
+    await drag(page, [0.40, 0.36], [0.50, 0.50]);
+    const [before] = await samplePixels(page, [[0.46, 0.45]]);
+
+    await tool(page, 'Cursor');
+    await drag(page, [0.45, 0.43], [0.25, 0.25]);
+    await drag(page, [0.26, 0.27], [0.26, 0.55]);
+
+    const [first, second] = await samplePixels(page, [[0.26, 0.27], [0.26, 0.55]]);
+    const near = (a, b) => Math.abs(a.r - b.r) < 12 && Math.abs(a.g - b.g) < 12 && Math.abs(a.b - b.b) < 12;
+    const white = (c) => c.r > 245 && c.g > 245 && c.b > 245;
+
+    const problems = [];
+    if (!white(first)) problems.push('the second move left the pixels at the first drop point');
+    if (!near(second, before)) problems.push('the second move lost the pixels');
+    return problems;
+  },
 };
 
 /* --------------------------------------------------------------------- main */
