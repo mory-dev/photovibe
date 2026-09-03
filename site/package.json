@@ -7,7 +7,8 @@
     "dev": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
-    "capture": "node scripts/capture-screenshots.mjs"
+    "capture": "node scripts/capture-screenshots.mjs",
+    "verify": "node scripts/verify-editor.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.6.0",

@@ -9,6 +9,8 @@ import { strokeBrushes } from "../engine/pixels/paint";
 import { pixelStore } from "../engine/pixels/pixel-store";
 import { hideLayer } from "../engine/document/hide-layer";
 import { textOverlayLayout } from "../engine/pixels/text-metrics";
+import { DEFAULT_TRANSFORM } from "../engine/document/types";
+import { withSelectionClip } from "../engine/selections/clip";
 import { fillLassoMask, fillRectMask, fillWandMask, flattenDocument, normalizeRect } from "../engine/selections/create-mask";
 import { selectionStore } from "../engine/selections/selection-store";
 import { usePixelGeneration } from "../hooks/use-pixel-generation";
@@ -213,7 +215,13 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const canvas = getMutableCanvas(layerId);
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    strokeBrushes(ctx, from, to, brushSize / 2, foreground, erase);
+    // ensurePaintLayer normalises the paint target to document size with an
+    // identity transform, so stroke coordinates are already document space.
+    const layer = document?.layers.find((item) => item.id === layerId);
+    const transform = layer && layer.kind !== "adjustment" ? layer.transform : DEFAULT_TRANSFORM;
+    withSelectionClip(ctx, transform, (target) => {
+      strokeBrushes(target, from, to, brushSize / 2, foreground, erase);
+    });
     schedulePaintFrame(layerId);
   }
 
