@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 export function Modal({
   title,
@@ -11,6 +11,14 @@ export function Modal({
   onClose: () => void;
   width?: number;
 }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55" onMouseDown={onClose}>
       <div
