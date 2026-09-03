@@ -24,12 +24,19 @@ you cannot use today.
 - Duplicate, delete, reorder by selection, and hide layers
 
 **Editing**
-- Brush, eraser, gradient and healing tools
+- Brush, eraser, gradient and healing tools, all clipped to the active selection
 - Editable text layers using any installed system font
 - Eyedropper, including sampling from anywhere on screen in the desktop build
+- A colour picker with a hue/saturation wheel and RGB, HSL, alpha and hex fields
 - Rectangular, freehand and magic-wand selections
-- Moving selected pixels with the Move tool
+- Moving the selected pixels, or just the outline, with the Cursor tool
+- Cut, copy and paste the selected region
 - Full undo/redo history, with each step named
+
+**Adjustments and filters**
+- Brightness/contrast, exposure, hue/saturation, levels, invert, grayscale, sepia
+- Gaussian blur, sharpen, vignette and noise
+- All of them apply to the selection when there is one, with a live preview
 
 **Application**
 - Windows desktop build, signed with Azure Trusted Signing
@@ -44,7 +51,6 @@ These appear in the menus, greyed out:
 |---|---|
 | Export PNG / JPEG / WebP dialogs | File |
 | Open Recent | File |
-| Cut and Copy | Edit |
 | Canvas Size | Image |
 | Rotate Canvas, Flip Horizontal, Flip Vertical | Image |
 | Layer Mask | Layer |
@@ -60,11 +66,11 @@ Roughly in the order we intend to tackle them:
 1. **Export dialogs** — explicit PNG, JPEG and WebP export with quality control, rather
    than saving back over the source file.
 2. **Layer masks** — non-destructive masking, the single biggest gap against Photoshop.
-3. **Adjustment layers** — levels, curves, hue/saturation, applied non-destructively.
+3. **Adjustment layers** — the adjustments above, applied non-destructively on their own
+   layer rather than baked into the pixels.
 4. **Canvas transforms** — canvas size, rotate and flip.
 5. **Selection refinement** — invert, feather, grow and shrink.
-6. **Filters** — a small, honest set of filters rather than a large weak one.
-7. **macOS and Linux builds** — the Tauri shell already supports both; they need signing,
+6. **macOS and Linux builds** — the Tauri shell already supports both; they need signing,
    notarisation and testing before we publish them.
 
 ## Ideas and requests

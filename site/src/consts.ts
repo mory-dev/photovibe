@@ -52,11 +52,14 @@ export const BLEND_MODES = [
 export const WORKS_TODAY = [
   'Multi-layer documents with per-layer opacity and 13 blend modes',
   'Open PNG, JPEG and WebP files; save your work back to disk',
-  'Rectangular, freehand and magic-wand selections',
+  'Rectangular, freehand and magic-wand selections that clip every edit',
   'Brush, eraser, gradient, healing and text tools',
+  'Brightness, exposure, hue/saturation, levels, blur, sharpen and more',
+  'Cut, copy and paste the selected region',
+  'Drag an image in from the desktop, or paste one from the clipboard',
+  'A colour picker with a wheel and RGB, HSL and hex fields',
   'Full undo/redo history with named steps',
   'Image resizing, cropping and a fit-to-screen canvas',
-  'System colour picker that samples anywhere on screen',
   'GPU compositing through a custom WebGL engine',
 ];
 
@@ -65,6 +68,5 @@ export const COMING_NEXT = [
   'Layer masks and non-destructive adjustment layers',
   'Canvas size, rotate and flip',
   'Invert and refine-edge for selections',
-  'A filter gallery',
   'macOS and Linux builds',
 ];

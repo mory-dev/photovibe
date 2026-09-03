@@ -10,6 +10,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sample_screen_color,
             pin_cursor,
+            read_clipboard_files,
             list_system_fonts,
             app_version
         ])
@@ -68,6 +69,76 @@ fn windows_pin_cursor(x: i32, y: i32) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// File Explorer puts a CF_HDROP file list on the clipboard rather than a
+/// bitmap, which the clipboard plugin cannot see. Returns the dropped paths so
+/// the frontend can load the first image among them.
+#[tauri::command]
+fn read_clipboard_files() -> Result<Vec<String>, String> {
+    #[cfg(windows)]
+    {
+        return windows_read_clipboard_files();
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+#[cfg(windows)]
+fn windows_read_clipboard_files() -> Result<Vec<String>, String> {
+    use std::ffi::c_void;
+
+    const CF_HDROP: u32 = 15;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn OpenClipboard(hwnd: *mut c_void) -> i32;
+        fn CloseClipboard() -> i32;
+        fn GetClipboardData(format: u32) -> *mut c_void;
+        fn IsClipboardFormatAvailable(format: u32) -> i32;
+    }
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn DragQueryFileW(drop: *mut c_void, index: u32, buffer: *mut u16, size: u32) -> u32;
+    }
+
+    unsafe {
+        if IsClipboardFormatAvailable(CF_HDROP) == 0 {
+            return Ok(Vec::new());
+        }
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return Err("Could not open the clipboard".into());
+        }
+
+        let handle = GetClipboardData(CF_HDROP);
+        if handle.is_null() {
+            CloseClipboard();
+            return Ok(Vec::new());
+        }
+
+        let count = DragQueryFileW(handle, u32::MAX, std::ptr::null_mut(), 0);
+        let mut paths = Vec::with_capacity(count as usize);
+        for index in 0..count {
+            // Ask for the length first, then read into a buffer of that size.
+            let len = DragQueryFileW(handle, index, std::ptr::null_mut(), 0);
+            if len == 0 {
+                continue;
+            }
+            let mut buffer = vec![0u16; len as usize + 1];
+            let written = DragQueryFileW(handle, index, buffer.as_mut_ptr(), buffer.len() as u32);
+            if written == 0 {
+                continue;
+            }
+            buffer.truncate(written as usize);
+            paths.push(String::from_utf16_lossy(&buffer));
+        }
+
+        CloseClipboard();
+        Ok(paths)
+    }
 }
 
 #[tauri::command]

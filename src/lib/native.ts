@@ -20,6 +20,51 @@ export async function pinCursor(x: number, y: number): Promise<void> {
   }
 }
 
+/**
+ * Puts a PNG on the system clipboard. Returns false in the browser, where the
+ * caller falls back to the in-process clipboard.
+ */
+export async function writeClipboardImage(bytes: Uint8Array): Promise<boolean> {
+  try {
+    const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
+    await writeImage(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp)$/i;
+
+/**
+ * Paths of image files on the clipboard. File Explorer copies files as a
+ * CF_HDROP list rather than a bitmap, so readClipboardImage cannot see them.
+ */
+export async function readClipboardImagePaths(): Promise<string[]> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const paths = await invoke<string[]>("read_clipboard_files");
+    return paths.filter((path) => IMAGE_EXTENSIONS.test(path));
+  } catch {
+    return [];
+  }
+}
+
+/** Reads a file off disk by absolute path, for clipboard and drag-drop paths. */
+export async function readImageAtPath(path: string): Promise<{ blob: Blob; name: string } | null> {
+  try {
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const bytes = await readFile(path);
+    return { blob: new Blob([bytes]), name: path.replace(/^.*[/\\]/, "") };
+  } catch {
+    return null;
+  }
+}
+
+export function isImagePath(path: string): boolean {
+  return IMAGE_EXTENSIONS.test(path);
+}
+
 export async function listSystemFonts(): Promise<string[]> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");

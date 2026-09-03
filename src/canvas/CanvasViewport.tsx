@@ -9,11 +9,13 @@ import { strokeBrushes } from "../engine/pixels/paint";
 import { pixelStore } from "../engine/pixels/pixel-store";
 import { hideLayer } from "../engine/document/hide-layer";
 import { textOverlayLayout } from "../engine/pixels/text-metrics";
+import { DEFAULT_TRANSFORM } from "../engine/document/types";
+import { withSelectionClip } from "../engine/selections/clip";
 import { fillLassoMask, fillRectMask, fillWandMask, flattenDocument, normalizeRect } from "../engine/selections/create-mask";
 import { selectionStore } from "../engine/selections/selection-store";
 import { usePixelGeneration } from "../hooks/use-pixel-generation";
 import { useSelectionGeneration } from "../hooks/use-selection";
-import { pinCursor, readClipboardImage } from "../lib/native";
+import { isImagePath, pinCursor, readClipboardImage, readImageAtPath } from "../lib/native";
 import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
 import { useViewportStore } from "../store/viewport-store";
@@ -83,7 +85,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   const paintingRef = useRef(false);
   const paintRaf = useRef(0);
   const dragRef = useRef<{
-    kind: "pan" | "move" | "pixels" | "paint" | "rect" | "crop" | "lasso" | "crop-handle" | "brush-size";
+    kind: "pan" | "move" | "pixels" | "selection" | "paint" | "rect" | "crop" | "lasso" | "crop-handle" | "brush-size";
     layerId?: string;
     handle?: CropHandle;
     lastX: number;
@@ -94,7 +96,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     pinX?: number;
     pinY?: number;
     acc?: number;
-    ignoreNext?: boolean;
+    locked?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -109,6 +111,47 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       compositorRef.current = null;
     };
   }, [canvasEl]);
+
+  const [dropActive, setDropActive] = useState(false);
+
+  useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        const unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
+          if (event.payload.type === "over") {
+            setDropActive(true);
+            return;
+          }
+          if (event.payload.type === "leave") {
+            setDropActive(false);
+            return;
+          }
+          setDropActive(false);
+          for (const path of event.payload.paths) {
+            if (!isImagePath(path)) continue;
+            const file = await readImageAtPath(path);
+            if (file) {
+              await addImageLayer(file.blob, file.name);
+              return;
+            }
+          }
+        });
+        if (cancelled) unlisten();
+        else dispose = unlisten;
+      } catch {
+        // Browser build: the HTML5 handlers below cover it.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [addImageLayer]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -213,7 +256,13 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const canvas = getMutableCanvas(layerId);
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    strokeBrushes(ctx, from, to, brushSize / 2, foreground, erase);
+    // ensurePaintLayer normalises the paint target to document size with an
+    // identity transform, so stroke coordinates are already document space.
+    const layer = document?.layers.find((item) => item.id === layerId);
+    const transform = layer && layer.kind !== "adjustment" ? layer.transform : DEFAULT_TRANSFORM;
+    withSelectionClip(ctx, transform, (target) => {
+      strokeBrushes(target, from, to, brushSize / 2, foreground, erase);
+    });
     schedulePaintFrame(layerId);
   }
 
@@ -311,6 +360,12 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       const { screen } = toDoc(e);
       setHoverPos(screen);
       setBrushSizing(true);
+      // Pointer lock gives clean relative deltas without moving the OS cursor,
+      // so the size follows the drag smoothly and the cursor reappears exactly
+      // where it started. pin_cursor is the fallback where lock is refused.
+      const host = hostRef.current;
+      const locked = typeof host?.requestPointerLock === "function";
+      if (locked) void Promise.resolve(host.requestPointerLock()).catch(() => {});
       dragRef.current = {
         kind: "brush-size",
         lastX: e.clientX,
@@ -319,7 +374,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
         pinX: e.screenX,
         pinY: e.screenY,
         acc: 0,
-        ignoreNext: false,
+        locked,
       };
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
@@ -333,6 +388,19 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     if (e.button !== 0) return;
 
     if (activeTool === "cursor") {
+      // A selection under the cursor wins over the focus box: dragging inside
+      // one is how you move the selected chunk, and Alt moves just the outline.
+      if (selectionStore.mask && selectionStore.hitTest(docPos.x, docPos.y)) {
+        if (e.altKey) {
+          beginStroke("Move selection");
+          dragRef.current = { kind: "selection", lastX: e.clientX, lastY: e.clientY };
+        } else {
+          beginPixelMove();
+          dragRef.current = { kind: "pixels", lastX: e.clientX, lastY: e.clientY };
+        }
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
       if (focusBox && pointInBox(docPos, focusBox)) {
         const layer = document.layers.find((item) => item.id === focusBox.layerId);
         if (layer && !layer.locked && layer.kind !== "adjustment") {
@@ -471,15 +539,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const drag = dragRef.current;
     if (!drag) return;
 
-    if (drag.kind === "brush-size" && drag.startSize != null && drag.pinX != null && drag.pinY != null) {
-      if (drag.ignoreNext) {
-        drag.ignoreNext = false;
-        return;
-      }
+    if (drag.kind === "brush-size" && drag.startSize != null) {
       drag.acc = (drag.acc ?? 0) + e.movementX * 0.4;
       setBrushSize(drag.startSize + drag.acc);
-      drag.ignoreNext = true;
-      void pinCursor(drag.pinX, drag.pinY);
+      if (!drag.locked && drag.pinX != null && drag.pinY != null) void pinCursor(drag.pinX, drag.pinY);
       return;
     }
 
@@ -506,6 +569,17 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     if (drag.kind === "pixels") {
       selectionStore.floatX += (e.clientX - drag.lastX) / viewport.zoom;
       selectionStore.floatY += (e.clientY - drag.lastY) / viewport.zoom;
+      selectionStore.bump();
+      drag.lastX = e.clientX;
+      drag.lastY = e.clientY;
+      return;
+    }
+
+    if (drag.kind === "selection") {
+      // Shifting the offset moves the marching ants, the hit test and the paint
+      // clip together, leaving the pixels underneath alone.
+      selectionStore.offsetX += (e.clientX - drag.lastX) / viewport.zoom;
+      selectionStore.offsetY += (e.clientY - drag.lastY) / viewport.zoom;
       selectionStore.bump();
       drag.lastX = e.clientX;
       drag.lastY = e.clientY;
@@ -540,7 +614,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   function onPointerUp() {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (drag?.kind === "brush-size") setBrushSizing(false);
+    if (drag?.kind === "brush-size") {
+      setBrushSizing(false);
+      if (drag.locked && window.document.pointerLockElement) window.document.exitPointerLock();
+    }
     if (!document) return;
 
     if (drag?.kind === "paint") {
@@ -555,6 +632,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     if (drag?.kind === "pixels" && activeLayer && activeLayer.kind !== "adjustment") {
       stampFloatingSelection(activeLayer);
       touchPixels();
+      setSelection(selectionStore.toDocumentSelection(), { history: false });
+    }
+
+    if (drag?.kind === "selection") {
       setSelection(selectionStore.toDocumentSelection(), { history: false });
     }
 
@@ -670,6 +751,21 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       }}
       onWheel={onWheel}
       onDragStart={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDropActive(true);
+      }}
+      onDragLeave={() => setDropActive(false)}
+      onDrop={async (e) => {
+        // Browser build only; the desktop app receives paths through
+        // onDragDropEvent instead, because the webview swallows the DOM event.
+        const file = [...e.dataTransfer.files].find((item) => item.type.startsWith("image/"));
+        if (!file) return;
+        e.preventDefault();
+        setDropActive(false);
+        await addImageLayer(file, file.name);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         if (e.altKey) return;
@@ -784,6 +880,9 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
             width: `${Math.max(fontSize * viewport.zoom, textValue.length * fontSize * viewport.zoom * 0.62)}px`,
           }}
         />
+      )}
+      {dropActive && (
+        <div className="pointer-events-none absolute inset-3 z-20 rounded-lg border-2 border-dashed border-accent/70 bg-accent/5" />
       )}
       {showBrushRing && (
         <div

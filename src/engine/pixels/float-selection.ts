@@ -1,5 +1,6 @@
 import type { Layer } from "../document/types";
 import { getMutableCanvas } from "./canvas";
+import { pixelStore } from "./pixel-store";
 import { selectionStore } from "../selections/selection-store";
 
 export function extractFloatingSelection(layer: Layer): boolean {
@@ -25,6 +26,10 @@ export function extractFloatingSelection(layer: Layer): boolean {
   sctx.drawImage(mask, 0, 0);
   sctx.restore();
 
+  // The compositor caches a GPU texture per layer generation, so mutating the
+  // canvas in place is invisible until the layer is explicitly invalidated.
+  pixelStore.touchLayer(layer.id);
+
   selectionStore.floating = floating;
   selectionStore.floatX = 0;
   selectionStore.floatY = 0;
@@ -42,6 +47,7 @@ export function stampFloatingSelection(layer: Layer): void {
     selectionStore.floatX - layer.transform.x,
     selectionStore.floatY - layer.transform.y,
   );
+  pixelStore.touchLayer(layer.id);
   if (selectionStore.mask) {
     const moved = document.createElement("canvas");
     moved.width = selectionStore.mask.width;

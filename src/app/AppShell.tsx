@@ -9,13 +9,50 @@ import { OptionsBar } from "../components/OptionsBar";
 import { SplashScreen } from "../components/SplashScreen";
 import { StatusBar } from "../components/StatusBar";
 import { Toolbar, type ToolId } from "../components/Toolbar";
-import { listSystemFonts, openImagePath, readClipboardImage, sampleScreenColor } from "../lib/native";
-import { useDocumentStore } from "../store/document-store";
+import { FilterDialog, type FilterSpec } from "../components/FilterDialog";
+import type { Filter } from "../engine/filters/adjustments";
+import { beginFilter, previewFilter } from "../engine/filters/apply";
+import { ADJUSTMENTS, EFFECTS } from "../engine/filters/catalogue";
+import { canvasToBlob, clearSelectionRegion, copySelectionRegion } from "../engine/pixels/clipboard-region";
+import { selectionStore } from "../engine/selections/selection-store";
+import { useSelectionGeneration } from "../hooks/use-selection";
+import {
+  listSystemFonts,
+  openImagePath,
+  readClipboardImage,
+  readClipboardImagePaths,
+  readImageAtPath,
+  sampleScreenColor,
+  writeClipboardImage,
+} from "../lib/native";
+import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
 import { useViewportStore } from "../store/viewport-store";
 
+/**
+ * Cut and Copy keep the region here as well as on the system clipboard, so a
+ * Paste inside Photovibe is exact rather than a PNG round-trip.
+ */
+const internalClipboard: { canvas: HTMLCanvasElement | null } = { canvas: null };
+
 const SPLASH_MIN_MS = 1200;
 const SKELETON_MS = 350;
+
+/**
+ * Only real text entry should swallow shortcuts. Sliders, checkboxes and
+ * dropdowns are focusable too, and treating them as text entry meant that
+ * touching the brush-size slider silently killed Ctrl+Z until you clicked
+ * somewhere else.
+ */
+const TEXT_INPUT_TYPES = new Set(["text", "search", "url", "tel", "email", "password", "number"]);
+
+function isTextEntry(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === "TEXTAREA") return true;
+  if (el.tagName !== "INPUT") return false;
+  return TEXT_INPUT_TYPES.has((el as HTMLInputElement).type);
+}
 
 function shouldBlockBrowserShortcut(e: KeyboardEvent): boolean {
   const key = e.key.toLowerCase();
@@ -45,6 +82,14 @@ export function AppShell() {
   const setSelection = useDocumentStore((s) => s.setSelection);
   const selectAll = useDocumentStore((s) => s.selectAll);
   const addImageLayer = useDocumentStore((s) => s.addImageLayer);
+  const beginStroke = useDocumentStore((s) => s.beginStroke);
+  const touchPixels = useDocumentStore((s) => s.touchPixels);
+  const activeLayer = useActiveLayer();
+  // selectionStore is not a React store; this subscribes so menu enablement
+  // tracks whether a selection exists.
+  useSelectionGeneration();
+  const hasSelection = !!selectionStore.mask;
+  const canFilter = !!activeLayer && activeLayer.kind !== "adjustment";
   const saveDocument = useDocumentStore((s) => s.saveDocument);
   const saveDocumentAs = useDocumentStore((s) => s.saveDocumentAs);
   const resizeImage = useDocumentStore((s) => s.resizeImage);
@@ -63,10 +108,12 @@ export function AppShell() {
   const [phase, setPhase] = useState<"splash" | "skeleton" | "ready">("splash");
   const [splashExiting, setSplashExiting] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolId>("move");
+  const previousToolRef = useRef<ToolId>("move");
   const [showGrid, setShowGrid] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterSpec | null>(null);
   const fittedDocRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -110,19 +157,84 @@ export function AppShell() {
       const el = e.target as HTMLElement;
       if (el.closest("button, input, select, textarea, [role='menu'], [role='menuitem'], a")) return;
       if (hoverColor) setForeground(hoverColor);
+      // Picking a colour is a means to an end, so hand the user back whatever
+      // they were doing before they reached for the eyedropper.
+      setActiveTool(previousToolRef.current);
     }
     window.addEventListener("pointerdown", onDown, true);
     return () => window.removeEventListener("pointerdown", onDown, true);
   }, [activeTool, hoverColor, setForeground]);
 
+  const selectTool = useCallback(
+    (next: ToolId) => {
+      if (next === "eyedropper" && activeTool !== "eyedropper") previousToolRef.current = activeTool;
+      setActiveTool(next);
+    },
+    [activeTool],
+  );
+
   const handleNewDocument = useCallback(() => {
     setShowNew(true);
   }, []);
 
+  const handleCopy = useCallback(
+    async (cut: boolean) => {
+      if (!activeLayer || !selectionStore.mask) return;
+
+      const region = copySelectionRegion(activeLayer);
+      if (!region) return;
+
+      // Keep the canvas in process so Paste round-trips without re-encoding,
+      // and mirror it onto the system clipboard for other applications.
+      internalClipboard.canvas = region;
+      const blob = await canvasToBlob(region);
+      if (blob) await writeClipboardImage(new Uint8Array(await blob.arrayBuffer()));
+
+      if (cut) {
+        beginStroke("Cut");
+        clearSelectionRegion(activeLayer);
+        touchPixels();
+      }
+    },
+    [activeLayer, beginStroke, touchPixels],
+  );
+
+  const runFilter = useCallback(
+    (spec: FilterSpec, filter: Filter) => {
+      if (!activeLayer) return;
+      // FilterDialog has already put the original pixels back, so the history
+      // entry opens on the unfiltered state.
+      beginStroke(spec.name);
+      const target = beginFilter(activeLayer);
+      if (target) previewFilter(target, filter);
+      touchPixels();
+    },
+    [activeLayer, beginStroke, touchPixels],
+  );
+
   const handlePaste = useCallback(async () => {
+    // The system clipboard wins. Our own Copy writes a PNG there too, and PNG
+    // round-trips losslessly, so consulting it first costs nothing - whereas
+    // preferring the in-process copy meant one Ctrl+C shadowed every later
+    // paste from outside the app.
     const clip = await readClipboardImage();
-    if (!clip) return;
-    await addImageLayer(clip.blob, "Pasted");
+    if (clip) {
+      await addImageLayer(clip.blob, "Pasted");
+      return;
+    }
+    // File Explorer copies a file as a CF_HDROP path list, not a bitmap.
+    for (const path of await readClipboardImagePaths()) {
+      const file = await readImageAtPath(path);
+      if (file) {
+        await addImageLayer(file.blob, file.name);
+        return;
+      }
+    }
+    // Last resort: the browser build cannot reach the system clipboard.
+    if (internalClipboard.canvas) {
+      const blob = await canvasToBlob(internalClipboard.canvas);
+      if (blob) await addImageLayer(blob, "Pasted");
+    }
   }, [addImageLayer]);
 
   const handleOpen = useCallback(async () => {
@@ -179,16 +291,43 @@ export function AppShell() {
             action: redo,
           },
           { separator: true },
-          { label: "Cut", shortcut: "Ctrl+X", disabled: true },
-          { label: "Copy", shortcut: "Ctrl+C", disabled: true },
+          {
+            label: "Cut",
+            shortcut: "Ctrl+X",
+            disabled: !hasSelection,
+            action: () => void handleCopy(true),
+          },
+          {
+            label: "Copy",
+            shortcut: "Ctrl+C",
+            disabled: !hasSelection,
+            action: () => void handleCopy(false),
+          },
           { label: "Paste", shortcut: "Ctrl+V", action: () => void handlePaste() },
         ],
       },
       {
         label: "Image",
         items: [
-          { label: "Adjust…", shortcut: "Ctrl+Alt+I", action: () => setShowImageSize(true) },
-          { label: "Image Size…", action: () => setShowImageSize(true) },
+          { label: "Image Size…", shortcut: "Ctrl+Alt+I", action: () => setShowImageSize(true) },
+          { separator: true },
+          {
+            label: "Adjustments",
+            disabled: !canFilter,
+            items: ADJUSTMENTS.map((spec) => ({
+              label: spec.params.length ? `${spec.name}…` : spec.name,
+              action: () => setActiveFilter(spec),
+            })),
+          },
+          {
+            label: "Filters",
+            disabled: !canFilter,
+            items: EFFECTS.map((spec) => ({
+              label: `${spec.name}…`,
+              action: () => setActiveFilter(spec),
+            })),
+          },
+          { separator: true },
           { label: "Canvas Size…", disabled: true },
           { label: "Rotate Canvas", disabled: true },
           { label: "Flip Horizontal", disabled: true },
@@ -200,7 +339,7 @@ export function AppShell() {
         items: [
           { label: "New Layer", shortcut: "Ctrl+Shift+N", action: addEmptyLayer },
           { label: "New Fill Layer", action: () => addFillLayer() },
-          { label: "Duplicate Layer", shortcut: "Ctrl+D", action: duplicateActiveLayer },
+          { label: "Duplicate Layer", shortcut: "Ctrl+J", action: duplicateActiveLayer },
           { label: "Delete Layer", action: deleteActiveLayer },
           { separator: true },
           { label: "Layer Mask", disabled: true },
@@ -210,7 +349,7 @@ export function AppShell() {
         label: "Select",
         items: [
           { label: "All", shortcut: "Ctrl+A", action: selectAll },
-          { label: "Deselect", shortcut: "Esc", action: () => setSelection(null) },
+          { label: "Deselect", shortcut: "Ctrl+D", action: () => setSelection(null) },
           { label: "Inverse", shortcut: "Ctrl+Shift+I", disabled: true },
           { separator: true },
           { label: "Refine Edge…", disabled: true },
@@ -260,6 +399,9 @@ export function AppShell() {
     [
       handleNewDocument,
       handleOpen,
+      handleCopy,
+      hasSelection,
+      canFilter,
       handlePaste,
       saveDocument,
       saveDocumentAs,
@@ -298,10 +440,7 @@ export function AppShell() {
         e.preventDefault();
         e.stopPropagation();
       }
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
+      if (isTextEntry(e.target)) return;
       const toolMap: Record<string, ToolId> = {
         a: "cursor",
         v: "move",
@@ -317,7 +456,7 @@ export function AppShell() {
         g: "gradient",
       };
       if (toolMap[key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        setActiveTool(toolMap[key]);
+        selectTool(toolMap[key]);
       }
       if ((e.ctrlKey || e.metaKey) && key === "z" && e.shiftKey) {
         e.preventDefault();
@@ -347,9 +486,22 @@ export function AppShell() {
         e.preventDefault();
         void handleOpen();
       }
-      if (e.ctrlKey && (key === "j" || key === "d")) {
+      if (e.ctrlKey && key === "d") {
+        e.preventDefault();
+        // Ctrl+D deselects when there is something to deselect, which is what
+        // reaching for it during a selection almost always means.
+        if (selectionStore.mask) setSelection(null);
+        else duplicateActiveLayer();
+        return;
+      }
+      if (e.ctrlKey && key === "j") {
         e.preventDefault();
         duplicateActiveLayer();
+        return;
+      }
+      if (e.ctrlKey && (key === "c" || key === "x") && selectionStore.mask) {
+        e.preventDefault();
+        void handleCopy(key === "x");
         return;
       }
       if (e.ctrlKey && key === "v") {
@@ -416,7 +568,9 @@ export function AppShell() {
   }, [
     handleNewDocument,
     handleOpen,
+    handleCopy,
     handlePaste,
+    selectTool,
     saveDocument,
     saveDocumentAs,
     addEmptyLayer,
@@ -446,12 +600,12 @@ export function AppShell() {
       <MenuBar menus={menus} />
       <OptionsBar activeTool={activeTool} />
       <div className="flex min-h-0 flex-1">
-        <Toolbar activeTool={activeTool} onToolChange={(id) => setActiveTool(id as ToolId)} />
+        <Toolbar activeTool={activeTool} onToolChange={(id) => selectTool(id as ToolId)} />
         <CanvasViewport
           showGrid={showGrid}
           loading={isLoading}
           activeTool={activeTool}
-          onToolChange={setActiveTool}
+          onToolChange={selectTool}
         />
         <InspectorPanel loading={isLoading} />
       </div>
@@ -479,6 +633,15 @@ export function AppShell() {
         />
       )}
       {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
+      {activeFilter && activeLayer && (
+        <FilterDialog
+          spec={activeFilter}
+          layer={activeLayer}
+          scopedToSelection={hasSelection}
+          onApply={(filter) => runFilter(activeFilter, filter)}
+          onClose={() => setActiveFilter(null)}
+        />
+      )}
     </div>
   );
 }

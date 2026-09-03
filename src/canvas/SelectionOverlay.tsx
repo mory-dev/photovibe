@@ -71,15 +71,25 @@ export function SelectionOverlay({ viewX, viewY, zoom }: SelectionOverlayProps) 
         </svg>
       )}
       {selectionStore.floating && (
-        <img
-          alt=""
-          src={selectionStore.floating.toDataURL()}
+        // Drawn rather than encoded: this repaints on every pointer move, and
+        // toDataURL would re-encode a document-sized PNG each frame.
+        <canvas
           className="absolute"
+          width={selectionStore.floating.width}
+          height={selectionStore.floating.height}
           style={{
             left: viewX + ox * zoom,
             top: viewY + oy * zoom,
             width: selectionStore.floating.width * zoom,
             height: selectionStore.floating.height * zoom,
+          }}
+          ref={(node) => {
+            const floating = selectionStore.floating;
+            if (!node || !floating) return;
+            const ctx = node.getContext("2d");
+            if (!ctx) return;
+            ctx.clearRect(0, 0, node.width, node.height);
+            ctx.drawImage(floating, 0, 0);
           }}
         />
       )}

@@ -188,7 +188,9 @@ export class HistoryManager {
   undo(current: HistoryEntry): HistoryEntry | null {
     const entry = this.undoStack.pop();
     if (!entry) return null;
-    this.redoStack.push(current);
+    // The redo step is the action being undone, so it carries that name rather
+    // than the placeholder the caller passes for the current state.
+    this.redoStack.push({ ...current, label: entry.label });
     this.lastAt = 0;
     return entry;
   }
@@ -196,7 +198,7 @@ export class HistoryManager {
   redo(current: HistoryEntry): HistoryEntry | null {
     const entry = this.redoStack.pop();
     if (!entry) return null;
-    this.undoStack.push(current);
+    this.undoStack.push({ ...current, label: entry.label });
     this.lastAt = 0;
     return entry;
   }

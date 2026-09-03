@@ -64,7 +64,12 @@ class PixelStore {
 
   replaceAll(sources: Record<string, TextureSource>): void {
     this.sources.clear();
-    this.layerGeneration.clear();
+    // Generations must stay monotonic. Resetting them meant a second restore
+    // landed on the same generation as the first, so the compositor kept its
+    // cached texture and every undo after the first was invisible.
+    for (const id of [...this.layerGeneration.keys()]) {
+      if (!(id in sources)) this.layerGeneration.delete(id);
+    }
     for (const [id, source] of Object.entries(sources)) {
       this.sources.set(id, source);
       this.bumpLayer(id);
