@@ -8,6 +8,7 @@ import { NewDocumentDialog } from "../components/NewDocumentDialog";
 import { OptionsBar } from "../components/OptionsBar";
 import { SplashScreen } from "../components/SplashScreen";
 import { StatusBar } from "../components/StatusBar";
+import { ShortcutsDialog } from "../components/ShortcutsDialog";
 import { Toolbar, type ToolId } from "../components/Toolbar";
 import { FilterDialog, type FilterSpec } from "../components/FilterDialog";
 import type { Filter } from "../engine/filters/adjustments";
@@ -113,6 +114,7 @@ export function AppShell() {
   const [showNew, setShowNew] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterSpec | null>(null);
   const fittedDocRef = useRef<string | null>(null);
 
@@ -391,7 +393,7 @@ export function AppShell() {
       {
         label: "Help",
         items: [
-          { label: "Keyboard Shortcuts", disabled: true },
+          { label: "Keyboard Shortcuts", shortcut: "?", action: () => setShowShortcuts(true) },
           { label: "About Photovibe", action: () => setShowAbout(true) },
         ],
       },
@@ -510,7 +512,9 @@ export function AppShell() {
         return;
       }
       if (key === "escape") {
-        setSelection(null);
+        // A dialog takes Escape first; clearing the selection underneath it
+        // would be a surprise.
+        if (!window.document.querySelector('[role="dialog"]')) setSelection(null);
       }
       if (e.ctrlKey && (key === "=" || key === "+")) {
         e.preventDefault();
@@ -535,6 +539,11 @@ export function AppShell() {
       if (e.ctrlKey && key === "a") {
         e.preventDefault();
         selectAll();
+      }
+      if (e.key === "?" && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setShowShortcuts(true);
+        return;
       }
       if (key === "[" && !e.ctrlKey) {
         setBrushSize(brushSize - 4);
@@ -633,6 +642,7 @@ export function AppShell() {
         />
       )}
       {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
+      {showShortcuts && <ShortcutsDialog menus={menus} onClose={() => setShowShortcuts(false)} />}
       {activeFilter && activeLayer && (
         <FilterDialog
           spec={activeFilter}

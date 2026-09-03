@@ -15,7 +15,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 
-const TOOLS = [
+/** Also drives the shortcuts reference, so it stays the single source. */
+export const TOOLS = [
   { id: "cursor", label: "Cursor", shortcut: "A", icon: MousePointer2 },
   { id: "move", label: "Move", shortcut: "V", icon: Move },
   { id: "marquee", label: "Marquee", shortcut: "M", icon: SquareDashed },
