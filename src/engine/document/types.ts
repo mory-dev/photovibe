@@ -103,13 +103,25 @@ export interface Selection {
   bounds: { x: number; y: number; width: number; height: number } | null;
 }
 
+/** Formats a document can be saved as. */
+export type ImageFormat = "png" | "jpeg" | "webp";
+
+export const IMAGE_FORMATS: Array<{ id: ImageFormat; label: string; extension: string; alpha: boolean }> = [
+  { id: "png", label: "PNG", extension: "png", alpha: true },
+  { id: "jpeg", label: "JPEG", extension: "jpg", alpha: false },
+  { id: "webp", label: "WebP", extension: "webp", alpha: true },
+];
+
 export interface Document {
   id: string;
   name: string;
   width: number;
   height: number;
   dpi: number;
+  /** Alpha of 0 means a transparent background. */
   backgroundColor: Color;
+  /** Default used by Save As, chosen when the document is created. */
+  format: ImageFormat;
   layers: Layer[];
   activeLayerId: string;
   selection: Selection | null;

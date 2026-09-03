@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { createRasterLayer, createTextLayer } from "../engine/document/factories";
 import * as layerOps from "../engine/document/layer-ops";
-import type { BlendMode, Color, Document, Layer, Selection, Transform2D } from "../engine/document/types";
+import type { BlendMode, Color, Document, ImageFormat, Layer, Selection, Transform2D } from "../engine/document/types";
 import {
   DEFAULT_BACKGROUND,
   DEFAULT_DOCUMENT_HEIGHT,
   DEFAULT_DOCUMENT_WIDTH,
   DEFAULT_TRANSFORM,
+  IMAGE_FORMATS,
 } from "../engine/document/types";
 import {
   captureEntry,
@@ -45,7 +46,7 @@ interface DocumentStore {
   undoLabel?: string;
   redoLabel?: string;
   initBlankDocument: () => void;
-  newDocument: (options?: { width?: number; height?: number; backgroundColor?: Color; image?: Blob; name?: string; filePath?: string }) => Promise<void>;
+  newDocument: (options?: { width?: number; height?: number; backgroundColor?: Color; format?: ImageFormat; image?: Blob; name?: string; filePath?: string }) => Promise<void>;
   openImageFile: (file: File | Blob, path?: string, name?: string) => Promise<void>;
   applySelection: (label: string, apply: () => Selection | null) => void;
   addFillLayer: (color?: Color) => void;
@@ -78,8 +79,10 @@ function seedBlankDocument(
   width = DEFAULT_DOCUMENT_WIDTH,
   height = DEFAULT_DOCUMENT_HEIGHT,
   backgroundColor: Color = DEFAULT_BACKGROUND,
+  options: { format?: ImageFormat; sample?: boolean } = {},
 ): Document {
   pixelStore.clear();
+  const { format = "png", sample = true } = options;
 
   const background = createRasterLayer("Background", { locked: true, role: "background" });
   const overlaySize = Math.round(Math.min(width, height) * 0.42);
@@ -94,17 +97,19 @@ function seedBlankDocument(
   });
 
   assignLayerPixels(background.id, createSolidCanvas(width, height, backgroundColor));
-  assignLayerPixels(overlay.id, createSoftCircleCanvas(overlaySize, SAMPLE_OVERLAY));
+  if (sample) assignLayerPixels(overlay.id, createSoftCircleCanvas(overlaySize, SAMPLE_OVERLAY));
 
+  const layers = sample ? [background, overlay] : [background];
   return {
     id: generateId("doc"),
     name: "Untitled",
     width,
     height,
     dpi: 72,
+    format,
     backgroundColor,
-    layers: [background, overlay],
-    activeLayerId: overlay.id,
+    layers,
+    activeLayerId: (sample ? overlay : background).id,
     selection: null,
   };
 }
@@ -167,8 +172,11 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
       const width = options.width ?? DEFAULT_DOCUMENT_WIDTH;
       const height = options.height ?? DEFAULT_DOCUMENT_HEIGHT;
       const backgroundColor = options.backgroundColor ?? DEFAULT_BACKGROUND;
+      const format = options.format ?? "png";
       if (!options.image) {
-        const next = seedBlankDocument(width, height, backgroundColor);
+        // The decorative sample overlay belongs to the document seeded at
+        // startup, not to one the user deliberately created.
+        const next = seedBlankDocument(width, height, backgroundColor, { format, sample: false });
         next.name = options.name || "Untitled";
         next.filePath = options.filePath;
         set({ document: next, dirty: !options.filePath, ...historyFlags() });
@@ -187,6 +195,7 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
           width,
           height,
           dpi: 72,
+          format: "png",
           backgroundColor,
           layers: [background, image],
           activeLayerId: image.id,
@@ -213,6 +222,7 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
           width: canvas.width,
           height: canvas.height,
           dpi: 72,
+          format: "png",
           backgroundColor: { r: 255, g: 255, b: 255, a: 0 },
           layers: [layer],
           activeLayerId: layer.id,
@@ -399,6 +409,7 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
             width: canvas.width,
             height: canvas.height,
             dpi: 72,
+            format: "png",
             backgroundColor: { r: 255, g: 255, b: 255, a: 0 },
             layers: [layer],
             activeLayerId: layer.id,
@@ -471,7 +482,8 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
     saveDocumentAs: async () => {
       const document = get().document;
       if (!document) return;
-      const path = await pickSavePath(`${document.name || "Untitled"}.png`);
+      const extension = IMAGE_FORMATS.find((item) => item.id === document.format)?.extension ?? "png";
+      const path = await pickSavePath(`${document.name || "Untitled"}.${extension}`);
       if (!path) return;
       const bytes = await flattenToBytes(document, path);
       await saveBytes(path, bytes);
