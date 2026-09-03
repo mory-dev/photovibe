@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://photovibe.mory.dev/sitemap-index.xml

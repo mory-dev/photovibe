@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        position: relative;
+        background: #161616;
+        color: #e8e8e8;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .glow {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(760px 380px at 22% -12%, rgba(196, 165, 116, 0.20), transparent 66%),
+          radial-gradient(560px 320px at 96% 108%, rgba(196, 165, 116, 0.09), transparent 70%);
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(to right, rgba(255,255,255,0.035) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(255,255,255,0.035) 1px, transparent 1px);
+        background-size: 48px 48px;
+        -webkit-mask-image: radial-gradient(680px 420px at 20% 0%, #000 15%, transparent 80%);
+      }
+      .wrap {
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0 0 0 68px;
+      }
+      .copy { width: 610px; flex: none; }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 30px;
+      }
+      .brand img { width: 46px; height: 46px; border-radius: 10px; }
+      .brand span { font-size: 27px; font-weight: 600; letter-spacing: -0.01em; }
+      h1 {
+        font-size: 56px;
+        line-height: 1.08;
+        letter-spacing: -0.025em;
+        font-weight: 600;
+      }
+      h1 em { font-style: normal; color: #c4a574; }
+      p {
+        margin-top: 24px;
+        font-size: 23px;
+        line-height: 1.48;
+        color: #9a9a9a;
+      }
+      .pills { margin-top: 34px; display: flex; gap: 10px; }
+      .pill {
+        border: 1px solid #343434;
+        background: #1e1e1e;
+        border-radius: 999px;
+        padding: 8px 17px;
+        font-size: 17px;
+        color: #b8b8b8;
+      }
+      .shot {
+        position: absolute;
+        top: 92px;
+        left: 700px;
+        width: 760px;
+        border-radius: 14px 0 0 14px;
+        border: 1px solid #303030;
+        border-right: 0;
+        box-shadow: -32px 32px 80px rgba(0, 0, 0, 0.62);
+        overflow: hidden;
+      }
+      .shot img { display: block; width: 100%; }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="grid"></div>
+
+    <div class="shot"><img src="../public/screenshots/hero.webp" alt="" /></div>
+
+    <div class="wrap">
+      <div class="copy">
+        <div class="brand">
+          <img src="../public/logo.png" alt="" />
+          <span>Photovibe</span>
+        </div>
+        <h1>A free, open-source <em>Photoshop alternative</em></h1>
+        <p>Layers, blend modes and selections on your own machine. No account, no cloud, no subscription.</p>
+        <div class="pills">
+          <div class="pill">MIT licensed</div>
+          <div class="pill">Windows</div>
+          <div class="pill">Works offline</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
