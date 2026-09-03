@@ -6,6 +6,7 @@ import { cn } from "../lib/utils";
 import { colorToCss } from "../engine/pixels/generate";
 import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
+import { ColorPickerDialog } from "./ColorPickerDialog";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Slider } from "./ui/Slider";
 import { Skeleton } from "./ui/Skeleton";
@@ -28,6 +29,8 @@ export function InspectorPanel({ loading }: InspectorPanelProps) {
   const foreground = useEditorStore((s) => s.foreground);
   const brushSize = useEditorStore((s) => s.brushSize);
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
+  const setForeground = useEditorStore((s) => s.setForeground);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
 
   if (loading || !document) {
@@ -75,11 +78,15 @@ export function InspectorPanel({ loading }: InspectorPanelProps) {
             <Prop label="Active layer" value={activeLayer.name} />
             <Prop label="Type" value={layerCategory(activeLayer)} />
             <Prop label="Blend mode" value={activeLayer.blendMode} />
-            <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded text-left hover:bg-surface-2"
+              onClick={() => setPickerOpen(true)}
+              title="Choose foreground color"
+            >
               <div
-                className="h-6 w-6 rounded border border-border"
+                className="h-6 w-6 shrink-0 rounded border border-border"
                 style={{ background: colorToCss(foreground) }}
-                title="Foreground color"
               />
               <div>
                 <div className="text-text-muted">Color</div>
@@ -87,7 +94,7 @@ export function InspectorPanel({ loading }: InspectorPanelProps) {
                   {Math.round(foreground.r)}, {Math.round(foreground.g)}, {Math.round(foreground.b)}
                 </div>
               </div>
-            </div>
+            </button>
             <Slider label={`Brush ${brushSize}px`} min={1} max={120} value={brushSize} onChange={setBrushSize} />
           </dl>
         ) : (
@@ -186,6 +193,9 @@ export function InspectorPanel({ loading }: InspectorPanelProps) {
         </IconButton>
       </footer>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      {pickerOpen && (
+        <ColorPickerDialog color={foreground} onChange={setForeground} onClose={() => setPickerOpen(false)} />
+      )}
     </aside>
   );
 }

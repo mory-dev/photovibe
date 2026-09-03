@@ -1,7 +1,9 @@
+import { useState } from "react";
 import type { ToolId } from "./Toolbar";
 import { colorToCss } from "../engine/pixels/generate";
 import { formatBrushSize } from "../lib/round-brush-size";
 import { useEditorStore } from "../store/editor-store";
+import { ColorPickerDialog } from "./ColorPickerDialog";
 import { Slider } from "./ui/Slider";
 
 
@@ -19,11 +21,17 @@ export function OptionsBar({ activeTool }: OptionsBarProps) {
   const systemFonts = useEditorStore((s) => s.systemFonts);
   const setFontFamily = useEditorStore((s) => s.setFontFamily);
   const setFontSize = useEditorStore((s) => s.setFontSize);
+  const setForeground = useEditorStore((s) => s.setForeground);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div className="flex h-8 items-center gap-3 border-b border-border bg-surface-1 px-3 text-[11px]">
       {(activeTool === "brush" || activeTool === "eraser" || activeTool === "eyedropper" || activeTool === "text") && (
-        <ColorChip color={hoverColor ?? foreground} label={hoverColor ? "Hover" : "Color"} />
+        <ColorChip
+          color={hoverColor ?? foreground}
+          label={hoverColor ? "Hover" : "Color"}
+          onClick={() => setPickerOpen(true)}
+        />
       )}
       {(activeTool === "brush" || activeTool === "eraser" || activeTool === "heal") && (
         <label className="flex w-44 items-center gap-2 text-text-muted">
@@ -64,21 +72,32 @@ export function OptionsBar({ activeTool }: OptionsBarProps) {
       {activeTool === "wand" && <span className="text-text-muted">Click a color to select connected pixels.</span>}
       {activeTool === "crop" && <span className="text-text-muted">Drag a box or the canvas corners. Enter applies, Esc resets.</span>}
       {activeTool === "move" && <span className="text-text-muted">Drag a layer. Alt-drag moves the current selection.</span>}
-      {activeTool === "brush" && <span className="text-text-muted">Paint. Ctrl+Alt+right-drag changes size.</span>}
-      {activeTool === "eraser" && <span className="text-text-muted">Erase. Ctrl+Alt+right-drag changes size.</span>}
+      {activeTool === "brush" && <span className="text-text-muted">Paint. Alt+right-drag changes size.</span>}
+      {activeTool === "eraser" && <span className="text-text-muted">Erase. Alt+right-drag changes size.</span>}
       {activeTool === "eyedropper" && <span className="text-text-muted">Hover to preview. Click to set the brush color.</span>}
+      {pickerOpen && (
+        <ColorPickerDialog color={foreground} onChange={setForeground} onClose={() => setPickerOpen(false)} />
+      )}
     </div>
   );
 }
 
-function ColorChip({ color, label }: { color: { r: number; g: number; b: number; a: number }; label: string }) {
+function ColorChip({
+  color,
+  label,
+  onClick,
+}: {
+  color: { r: number; g: number; b: number; a: number };
+  label: string;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex items-center gap-1.5">
+    <button type="button" className="flex items-center gap-1.5" onClick={onClick} title="Choose color">
       <span
         className="h-5 w-5 rounded-sm border border-black/40 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
         style={{ background: colorToCss(color) }}
       />
       <span className="text-text-muted">{label}</span>
-    </div>
+    </button>
   );
 }
