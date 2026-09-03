@@ -96,7 +96,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     pinX?: number;
     pinY?: number;
     acc?: number;
-    ignoreNext?: boolean;
+    locked?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -319,6 +319,12 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       const { screen } = toDoc(e);
       setHoverPos(screen);
       setBrushSizing(true);
+      // Pointer lock gives clean relative deltas without moving the OS cursor,
+      // so the size follows the drag smoothly and the cursor reappears exactly
+      // where it started. pin_cursor is the fallback where lock is refused.
+      const host = hostRef.current;
+      const locked = typeof host?.requestPointerLock === "function";
+      if (locked) void Promise.resolve(host.requestPointerLock()).catch(() => {});
       dragRef.current = {
         kind: "brush-size",
         lastX: e.clientX,
@@ -327,7 +333,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
         pinX: e.screenX,
         pinY: e.screenY,
         acc: 0,
-        ignoreNext: false,
+        locked,
       };
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
@@ -479,15 +485,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     const drag = dragRef.current;
     if (!drag) return;
 
-    if (drag.kind === "brush-size" && drag.startSize != null && drag.pinX != null && drag.pinY != null) {
-      if (drag.ignoreNext) {
-        drag.ignoreNext = false;
-        return;
-      }
+    if (drag.kind === "brush-size" && drag.startSize != null) {
       drag.acc = (drag.acc ?? 0) + e.movementX * 0.4;
       setBrushSize(drag.startSize + drag.acc);
-      drag.ignoreNext = true;
-      void pinCursor(drag.pinX, drag.pinY);
+      if (!drag.locked && drag.pinX != null && drag.pinY != null) void pinCursor(drag.pinX, drag.pinY);
       return;
     }
 
@@ -548,7 +549,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   function onPointerUp() {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (drag?.kind === "brush-size") setBrushSizing(false);
+    if (drag?.kind === "brush-size") {
+      setBrushSizing(false);
+      if (drag.locked && window.document.pointerLockElement) window.document.exitPointerLock();
+    }
     if (!document) return;
 
     if (drag?.kind === "paint") {

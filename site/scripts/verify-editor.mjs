@@ -132,6 +132,56 @@ const checks = {
       ? []
       : ['brush did not paint across the whole layer with no selection active'];
   },
+
+  /**
+   * #5 - Alt+right-drag must change the brush size smoothly. The old scheme
+   * pinned the OS cursor and swallowed alternate events, so the size lurched
+   * back and forth; this samples it along the drag and rejects any reversal.
+   */
+  async 'brush-resize'(page) {
+    await tool(page, 'Brush');
+    await setBrushSize(page, 20);
+
+    const box = await canvasBox(page);
+    const y = box.y + box.height * 0.5;
+    const startX = box.x + box.width * 0.5;
+
+    const readSize = () =>
+      page.evaluate(() => {
+        const label = [...document.querySelectorAll('aside span')].find((el) =>
+          /^Brush \d+px$/.test(el.textContent ?? ''),
+        );
+        return label ? Number(label.textContent.match(/(\d+)/)[1]) : null;
+      });
+
+    await page.mouse.move(startX, y);
+    await page.keyboard.down('Alt');
+    await page.mouse.down({ button: 'right' });
+
+    const sizes = [];
+    for (let i = 1; i <= 12; i += 1) {
+      await page.mouse.move(startX + i * 12, y);
+      await sleep(60);
+      sizes.push(await readSize());
+    }
+
+    await page.mouse.up({ button: 'right' });
+    await page.keyboard.up('Alt');
+    await sleep(200);
+
+    const problems = [];
+    if (sizes.some((size) => size === null)) return ['could not read the brush size label'];
+    if (sizes[sizes.length - 1] <= sizes[0]) {
+      problems.push(`dragging right did not grow the brush (${sizes[0]} -> ${sizes[sizes.length - 1]})`);
+    }
+    for (let i = 1; i < sizes.length; i += 1) {
+      if (sizes[i] < sizes[i - 1]) {
+        problems.push(`size went backwards mid-drag: ${sizes.join(', ')}`);
+        break;
+      }
+    }
+    return problems;
+  },
 };
 
 /* --------------------------------------------------------------------- main */
