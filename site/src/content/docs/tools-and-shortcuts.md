@@ -11,7 +11,7 @@ works whenever you are not typing into a field.
 
 | Tool | Key | What it does |
 |---|---|---|
-| Cursor | <kbd>A</kbd> | Click a layer to select it without moving anything. |
+| Cursor | <kbd>A</kbd> | Click a layer to select it. With a selection active, drag to move the selected pixels, or <kbd>Alt</kbd>-drag to move just the outline. |
 | Move | <kbd>V</kbd> | Drag the active layer around the canvas. <kbd>Alt</kbd>-drag moves the current selection instead. |
 | Marquee | <kbd>M</kbd> | Drag out a rectangular selection. |
 | Lasso | <kbd>L</kbd> | Draw a freehand selection. |
@@ -29,9 +29,12 @@ works whenever you are not typing into a field.
 ![Painting with a sampled colour on a new layer](/screenshots/brush.webp)
 
 The options bar shows the current colour and a size slider while the brush, eraser or
-healing tool is active. You can also resize without leaving the canvas: hold
-<kbd>Ctrl</kbd>+<kbd>Alt</kbd> and right-drag. The ring around the cursor previews the
-size as you go.
+healing tool is active. You can also resize without leaving the canvas: hold <kbd>Alt</kbd>
+and right-drag. The cursor stays pinned while you drag and returns to where it started, and
+the ring previews the size as you go.
+
+Strokes are clipped to the active selection, so a marquee or lasso is the simplest way to
+confine painting to one part of the image.
 
 Painting on an image layer edits that image directly. If you would rather keep the
 original intact, add a layer first with **Layer → New Layer**
@@ -42,6 +45,15 @@ original intact, add a layer first with **Layer → New Layer**
 Click anywhere on the canvas to make that colour the foreground colour. In the desktop
 build the eyedropper can also sample from outside the Photovibe window — anywhere on your
 screen — which is useful for matching a colour from another application.
+
+Once you pick a colour, Photovibe switches back to whichever tool you were using before, so
+sampling mid-stroke costs nothing.
+
+### Choosing a colour directly
+
+Click the colour swatch in the options bar, or the one in the properties panel, to open the
+colour picker: a hue and saturation wheel with a value slider, plus RGB, HSL, alpha and hex
+fields.
 
 ### Text
 
@@ -68,7 +80,9 @@ layer with the Text tool reopens it for editing.
 | Action | Shortcut |
 |---|---|
 | Undo | <kbd>Ctrl</kbd>+<kbd>Z</kbd> |
-| Redo | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> |
+| Redo | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd>Ctrl</kbd>+<kbd>Y</kbd> |
+| Copy the selected region | <kbd>Ctrl</kbd>+<kbd>C</kbd> |
+| Cut the selected region | <kbd>Ctrl</kbd>+<kbd>X</kbd> |
 | Paste image from clipboard | <kbd>Ctrl</kbd>+<kbd>V</kbd> |
 
 ### Layer
@@ -76,14 +90,14 @@ layer with the Text tool reopens it for editing.
 | Action | Shortcut |
 |---|---|
 | New layer | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> |
-| Duplicate layer | <kbd>Ctrl</kbd>+<kbd>D</kbd> |
+| Duplicate layer | <kbd>Ctrl</kbd>+<kbd>J</kbd> |
 
 ### Select
 
 | Action | Shortcut |
 |---|---|
 | Select all | <kbd>Ctrl</kbd>+<kbd>A</kbd> |
-| Deselect | <kbd>Esc</kbd> |
+| Deselect | <kbd>Ctrl</kbd>+<kbd>D</kbd> or <kbd>Esc</kbd> |
 
 ### Image and View
 
@@ -102,5 +116,7 @@ layer with the Text tool reopens it for editing.
 |---|---|
 | Pan | Hold <kbd>Space</kbd> and drag |
 | Zoom | Scroll wheel |
-| Resize brush | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+right-drag |
-| Move a selection's pixels | <kbd>Alt</kbd>-drag with the Move tool |
+| Resize brush | <kbd>Alt</kbd>+right-drag |
+| Move the selected pixels | Drag inside the selection with the Cursor tool |
+| Move the selection outline | <kbd>Alt</kbd>-drag with the Cursor tool |
+| Add an image | Drag an image file onto the canvas |
