@@ -75,9 +75,13 @@ async function drag(page, from, to, steps = 24) {
 }
 
 /** Reads pixels off the live canvas at fractional positions. */
-function samplePixels(page, points) {
+async function samplePixels(page, points) {
+  // A mid-run hot reload can briefly unmount the canvas; wait it out rather
+  // than failing with an opaque null dereference.
+  await page.waitForSelector('.pv-canvas canvas', { timeout: 15_000 });
   return page.evaluate((pts) => {
     const canvas = document.querySelector('.pv-canvas canvas');
+    if (!canvas) throw new Error('canvas disappeared while sampling');
     const probe = document.createElement('canvas');
     probe.width = canvas.width;
     probe.height = canvas.height;

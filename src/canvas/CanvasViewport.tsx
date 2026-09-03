@@ -15,7 +15,7 @@ import { fillLassoMask, fillRectMask, fillWandMask, flattenDocument, normalizeRe
 import { selectionStore } from "../engine/selections/selection-store";
 import { usePixelGeneration } from "../hooks/use-pixel-generation";
 import { useSelectionGeneration } from "../hooks/use-selection";
-import { pinCursor, readClipboardImage } from "../lib/native";
+import { isImagePath, pinCursor, readClipboardImage, readImageAtPath } from "../lib/native";
 import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
 import { useViewportStore } from "../store/viewport-store";
@@ -111,6 +111,47 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       compositorRef.current = null;
     };
   }, [canvasEl]);
+
+  const [dropActive, setDropActive] = useState(false);
+
+  useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        const unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
+          if (event.payload.type === "over") {
+            setDropActive(true);
+            return;
+          }
+          if (event.payload.type === "leave") {
+            setDropActive(false);
+            return;
+          }
+          setDropActive(false);
+          for (const path of event.payload.paths) {
+            if (!isImagePath(path)) continue;
+            const file = await readImageAtPath(path);
+            if (file) {
+              await addImageLayer(file.blob, file.name);
+              return;
+            }
+          }
+        });
+        if (cancelled) unlisten();
+        else dispose = unlisten;
+      } catch {
+        // Browser build: the HTML5 handlers below cover it.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [addImageLayer]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -710,6 +751,21 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       }}
       onWheel={onWheel}
       onDragStart={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDropActive(true);
+      }}
+      onDragLeave={() => setDropActive(false)}
+      onDrop={async (e) => {
+        // Browser build only; the desktop app receives paths through
+        // onDragDropEvent instead, because the webview swallows the DOM event.
+        const file = [...e.dataTransfer.files].find((item) => item.type.startsWith("image/"));
+        if (!file) return;
+        e.preventDefault();
+        setDropActive(false);
+        await addImageLayer(file, file.name);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         if (e.altKey) return;
@@ -824,6 +880,9 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
             width: `${Math.max(fontSize * viewport.zoom, textValue.length * fontSize * viewport.zoom * 0.62)}px`,
           }}
         />
+      )}
+      {dropActive && (
+        <div className="pointer-events-none absolute inset-3 z-20 rounded-lg border-2 border-dashed border-accent/70 bg-accent/5" />
       )}
       {showBrushRing && (
         <div

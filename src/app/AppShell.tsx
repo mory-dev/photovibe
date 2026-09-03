@@ -12,7 +12,15 @@ import { Toolbar, type ToolId } from "../components/Toolbar";
 import { canvasToBlob, clearSelectionRegion, copySelectionRegion } from "../engine/pixels/clipboard-region";
 import { selectionStore } from "../engine/selections/selection-store";
 import { useSelectionGeneration } from "../hooks/use-selection";
-import { listSystemFonts, openImagePath, readClipboardImage, sampleScreenColor, writeClipboardImage } from "../lib/native";
+import {
+  listSystemFonts,
+  openImagePath,
+  readClipboardImage,
+  readClipboardImagePaths,
+  readImageAtPath,
+  sampleScreenColor,
+  writeClipboardImage,
+} from "../lib/native";
 import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
 import { useViewportStore } from "../store/viewport-store";
@@ -179,8 +187,19 @@ export function AppShell() {
       }
     }
     const clip = await readClipboardImage();
-    if (!clip) return;
-    await addImageLayer(clip.blob, "Pasted");
+    if (clip) {
+      await addImageLayer(clip.blob, "Pasted");
+      return;
+    }
+    // Copying a file in File Explorer puts a CF_HDROP path list on the
+    // clipboard, not a bitmap, so fall back to loading the file itself.
+    for (const path of await readClipboardImagePaths()) {
+      const file = await readImageAtPath(path);
+      if (file) {
+        await addImageLayer(file.blob, file.name);
+        return;
+      }
+    }
   }, [addImageLayer]);
 
   const handleOpen = useCallback(async () => {
