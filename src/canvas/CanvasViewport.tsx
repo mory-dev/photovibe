@@ -85,7 +85,7 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
   const paintingRef = useRef(false);
   const paintRaf = useRef(0);
   const dragRef = useRef<{
-    kind: "pan" | "move" | "pixels" | "paint" | "rect" | "crop" | "lasso" | "crop-handle" | "brush-size";
+    kind: "pan" | "move" | "pixels" | "selection" | "paint" | "rect" | "crop" | "lasso" | "crop-handle" | "brush-size";
     layerId?: string;
     handle?: CropHandle;
     lastX: number;
@@ -347,6 +347,19 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     if (e.button !== 0) return;
 
     if (activeTool === "cursor") {
+      // A selection under the cursor wins over the focus box: dragging inside
+      // one is how you move the selected chunk, and Alt moves just the outline.
+      if (selectionStore.mask && selectionStore.hitTest(docPos.x, docPos.y)) {
+        if (e.altKey) {
+          beginStroke("Move selection");
+          dragRef.current = { kind: "selection", lastX: e.clientX, lastY: e.clientY };
+        } else {
+          beginPixelMove();
+          dragRef.current = { kind: "pixels", lastX: e.clientX, lastY: e.clientY };
+        }
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
       if (focusBox && pointInBox(docPos, focusBox)) {
         const layer = document.layers.find((item) => item.id === focusBox.layerId);
         if (layer && !layer.locked && layer.kind !== "adjustment") {
@@ -521,6 +534,17 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
       return;
     }
 
+    if (drag.kind === "selection") {
+      // Shifting the offset moves the marching ants, the hit test and the paint
+      // clip together, leaving the pixels underneath alone.
+      selectionStore.offsetX += (e.clientX - drag.lastX) / viewport.zoom;
+      selectionStore.offsetY += (e.clientY - drag.lastY) / viewport.zoom;
+      selectionStore.bump();
+      drag.lastX = e.clientX;
+      drag.lastY = e.clientY;
+      return;
+    }
+
     if (drag.kind === "paint" && drag.layerId && drag.lastDoc) {
       paintAt(drag.layerId, drag.lastDoc, docPos, activeTool === "eraser");
       drag.lastDoc = docPos;
@@ -567,6 +591,10 @@ export function CanvasViewport({ showGrid, loading, activeTool, onToolChange }: 
     if (drag?.kind === "pixels" && activeLayer && activeLayer.kind !== "adjustment") {
       stampFloatingSelection(activeLayer);
       touchPixels();
+      setSelection(selectionStore.toDocumentSelection(), { history: false });
+    }
+
+    if (drag?.kind === "selection") {
       setSelection(selectionStore.toDocumentSelection(), { history: false });
     }
 

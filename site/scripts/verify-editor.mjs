@@ -22,6 +22,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ------------------------------------------------------------------ helpers */
 
+async function isUp(url) {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+}
+
 async function waitForServer(url) {
   const deadline = Date.now() + 180_000;
   while (Date.now() < deadline) {
@@ -182,6 +190,76 @@ const checks = {
     }
     return problems;
   },
+
+  /**
+   * #11 - Cursor (A) drag inside a selection moves the selected pixels; the
+   * region it came from is left empty and the pixels show up further right.
+   */
+  async 'selection-move-pixels'(page) {
+    await tool(page, 'Brush');
+    await setBrushSize(page, 60);
+    await drag(page, [0.2, 0.5], [0.34, 0.5], 20);
+
+    await tool(page, 'Marquee');
+    await drag(page, [0.14, 0.38], [0.4, 0.62]);
+
+    await tool(page, 'Cursor');
+    await drag(page, [0.27, 0.5], [0.67, 0.5], 20);
+    await sleep(400);
+
+    const [origin, destination] = await samplePixels(page, [
+      [0.27, 0.5],
+      [0.67, 0.5],
+    ]);
+
+    const problems = [];
+    if (isDark(origin)) problems.push('pixels were left behind at the original position');
+    if (!isDark(destination)) problems.push('pixels did not arrive at the drop position');
+    return problems;
+  },
+
+  /**
+   * #11 - Alt+drag moves only the outline. The painted pixels must stay put,
+   * and the moved selection must now clip painting to its new position.
+   */
+  async 'selection-move-outline'(page) {
+    await tool(page, 'Brush');
+    await setBrushSize(page, 60);
+    await drag(page, [0.2, 0.5], [0.34, 0.5], 20);
+
+    await tool(page, 'Marquee');
+    await drag(page, [0.14, 0.38], [0.4, 0.62]);
+
+    await tool(page, 'Cursor');
+    const box = await canvasBox(page);
+    const at = (p) => [box.x + box.width * p[0], box.y + box.height * p[1]];
+    const [x1, y1] = at([0.27, 0.5]);
+    const [x2, y2] = at([0.67, 0.5]);
+    await page.keyboard.down('Alt');
+    await page.mouse.move(x1, y1);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i += 1) {
+      await page.mouse.move(x1 + ((x2 - x1) * i) / 20, y1 + ((y2 - y1) * i) / 20);
+    }
+    await page.mouse.up();
+    await page.keyboard.up('Alt');
+    await sleep(500);
+
+    const [origin] = await samplePixels(page, [[0.27, 0.5]]);
+    const problems = [];
+    if (!isDark(origin)) problems.push('Alt+drag moved the pixels; it should move only the outline');
+
+    // The outline should now clip painting to where it was dragged.
+    await tool(page, 'Brush');
+    await drag(page, [0.45, 0.5], [0.9, 0.5], 30);
+    const [between, moved] = await samplePixels(page, [
+      [0.45, 0.5],
+      [0.67, 0.5],
+    ]);
+    if (isDark(between)) problems.push('paint landed outside the moved selection');
+    if (!isDark(moved)) problems.push('paint did not land inside the moved selection');
+    return problems;
+  },
 };
 
 /* --------------------------------------------------------------------- main */
@@ -193,7 +271,14 @@ async function main() {
     if (!checks[name]) throw new Error(`Unknown check "${name}". Known: ${Object.keys(checks).join(', ')}`);
   }
 
-  const server = spawn('pnpm', ['dev'], { cwd: REPO_DIR, stdio: 'ignore', shell: process.platform === 'win32' });
+  // Vite uses strictPort, so a dev server left running by a previous run would
+  // make a second one fail silently. Reuse whatever is already listening.
+  const alreadyRunning = await isUp(APP_URL);
+  const server = alreadyRunning
+    ? null
+    : spawn('pnpm', ['dev'], { cwd: REPO_DIR, stdio: 'ignore', shell: process.platform === 'win32' });
+  if (alreadyRunning) console.log(`reusing the dev server already on ${APP_URL}`);
+
   const browser = await chromium.launch({
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
@@ -225,10 +310,12 @@ async function main() {
     }
   } finally {
     await browser.close();
-    if (process.platform === 'win32' && server.pid) {
-      spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
-    } else {
-      server.kill();
+    if (server) {
+      if (process.platform === 'win32' && server.pid) {
+        spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+      } else {
+        server.kill();
+      }
     }
   }
 
