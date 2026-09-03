@@ -9,6 +9,7 @@ import { OptionsBar } from "../components/OptionsBar";
 import { SplashScreen } from "../components/SplashScreen";
 import { StatusBar } from "../components/StatusBar";
 import { Toolbar, type ToolId } from "../components/Toolbar";
+import { selectionStore } from "../engine/selections/selection-store";
 import { listSystemFonts, openImagePath, readClipboardImage, sampleScreenColor } from "../lib/native";
 import { useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
@@ -63,6 +64,7 @@ export function AppShell() {
   const [phase, setPhase] = useState<"splash" | "skeleton" | "ready">("splash");
   const [splashExiting, setSplashExiting] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolId>("move");
+  const previousToolRef = useRef<ToolId>("move");
   const [showGrid, setShowGrid] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
@@ -110,10 +112,21 @@ export function AppShell() {
       const el = e.target as HTMLElement;
       if (el.closest("button, input, select, textarea, [role='menu'], [role='menuitem'], a")) return;
       if (hoverColor) setForeground(hoverColor);
+      // Picking a colour is a means to an end, so hand the user back whatever
+      // they were doing before they reached for the eyedropper.
+      setActiveTool(previousToolRef.current);
     }
     window.addEventListener("pointerdown", onDown, true);
     return () => window.removeEventListener("pointerdown", onDown, true);
   }, [activeTool, hoverColor, setForeground]);
+
+  const selectTool = useCallback(
+    (next: ToolId) => {
+      if (next === "eyedropper" && activeTool !== "eyedropper") previousToolRef.current = activeTool;
+      setActiveTool(next);
+    },
+    [activeTool],
+  );
 
   const handleNewDocument = useCallback(() => {
     setShowNew(true);
@@ -200,7 +213,7 @@ export function AppShell() {
         items: [
           { label: "New Layer", shortcut: "Ctrl+Shift+N", action: addEmptyLayer },
           { label: "New Fill Layer", action: () => addFillLayer() },
-          { label: "Duplicate Layer", shortcut: "Ctrl+D", action: duplicateActiveLayer },
+          { label: "Duplicate Layer", shortcut: "Ctrl+J", action: duplicateActiveLayer },
           { label: "Delete Layer", action: deleteActiveLayer },
           { separator: true },
           { label: "Layer Mask", disabled: true },
@@ -210,7 +223,7 @@ export function AppShell() {
         label: "Select",
         items: [
           { label: "All", shortcut: "Ctrl+A", action: selectAll },
-          { label: "Deselect", shortcut: "Esc", action: () => setSelection(null) },
+          { label: "Deselect", shortcut: "Ctrl+D", action: () => setSelection(null) },
           { label: "Inverse", shortcut: "Ctrl+Shift+I", disabled: true },
           { separator: true },
           { label: "Refine Edge…", disabled: true },
@@ -317,7 +330,7 @@ export function AppShell() {
         g: "gradient",
       };
       if (toolMap[key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        setActiveTool(toolMap[key]);
+        selectTool(toolMap[key]);
       }
       if ((e.ctrlKey || e.metaKey) && key === "z" && e.shiftKey) {
         e.preventDefault();
@@ -347,7 +360,15 @@ export function AppShell() {
         e.preventDefault();
         void handleOpen();
       }
-      if (e.ctrlKey && (key === "j" || key === "d")) {
+      if (e.ctrlKey && key === "d") {
+        e.preventDefault();
+        // Ctrl+D deselects when there is something to deselect, which is what
+        // reaching for it during a selection almost always means.
+        if (selectionStore.mask) setSelection(null);
+        else duplicateActiveLayer();
+        return;
+      }
+      if (e.ctrlKey && key === "j") {
         e.preventDefault();
         duplicateActiveLayer();
         return;
@@ -417,6 +438,7 @@ export function AppShell() {
     handleNewDocument,
     handleOpen,
     handlePaste,
+    selectTool,
     saveDocument,
     saveDocumentAs,
     addEmptyLayer,
@@ -446,12 +468,12 @@ export function AppShell() {
       <MenuBar menus={menus} />
       <OptionsBar activeTool={activeTool} />
       <div className="flex min-h-0 flex-1">
-        <Toolbar activeTool={activeTool} onToolChange={(id) => setActiveTool(id as ToolId)} />
+        <Toolbar activeTool={activeTool} onToolChange={(id) => selectTool(id as ToolId)} />
         <CanvasViewport
           showGrid={showGrid}
           loading={isLoading}
           activeTool={activeTool}
-          onToolChange={setActiveTool}
+          onToolChange={selectTool}
         />
         <InspectorPanel loading={isLoading} />
       </div>
