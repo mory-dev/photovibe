@@ -23,10 +23,10 @@ const TOOLS = [
   { id: "brush", label: "Brush", shortcut: "B", icon: Brush },
   { id: "wand", label: "Magic Wand", shortcut: "W", icon: Wand2 },
   { id: "crop", label: "Crop", shortcut: "C", icon: Crop },
+  { id: "eraser", label: "Eraser", shortcut: "E", icon: Eraser },
   { id: "eyedropper", label: "Eyedropper", shortcut: "I", icon: Pipette },
   { id: "text", label: "Text", shortcut: "T", icon: Type },
   { id: "heal", label: "Healing", shortcut: "J", icon: Bandage },
-  { id: "eraser", label: "Eraser", shortcut: "E", icon: Eraser },
   { id: "gradient", label: "Gradient", shortcut: "G", icon: GraduationCap },
 ] as const satisfies ReadonlyArray<{
   id: string;

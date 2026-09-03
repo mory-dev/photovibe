@@ -38,6 +38,22 @@ const internalClipboard: { canvas: HTMLCanvasElement | null } = { canvas: null }
 const SPLASH_MIN_MS = 1200;
 const SKELETON_MS = 350;
 
+/**
+ * Only real text entry should swallow shortcuts. Sliders, checkboxes and
+ * dropdowns are focusable too, and treating them as text entry meant that
+ * touching the brush-size slider silently killed Ctrl+Z until you clicked
+ * somewhere else.
+ */
+const TEXT_INPUT_TYPES = new Set(["text", "search", "url", "tel", "email", "password", "number"]);
+
+function isTextEntry(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === "TEXTAREA") return true;
+  if (el.tagName !== "INPUT") return false;
+  return TEXT_INPUT_TYPES.has((el as HTMLInputElement).type);
+}
+
 function shouldBlockBrowserShortcut(e: KeyboardEvent): boolean {
   const key = e.key.toLowerCase();
   const ctrl = e.ctrlKey || e.metaKey;
@@ -197,27 +213,27 @@ export function AppShell() {
   );
 
   const handlePaste = useCallback(async () => {
-    // Prefer the region we cut or copied ourselves; it is pixel-exact.
-    if (internalClipboard.canvas) {
-      const blob = await canvasToBlob(internalClipboard.canvas);
-      if (blob) {
-        await addImageLayer(blob, "Pasted");
-        return;
-      }
-    }
+    // The system clipboard wins. Our own Copy writes a PNG there too, and PNG
+    // round-trips losslessly, so consulting it first costs nothing - whereas
+    // preferring the in-process copy meant one Ctrl+C shadowed every later
+    // paste from outside the app.
     const clip = await readClipboardImage();
     if (clip) {
       await addImageLayer(clip.blob, "Pasted");
       return;
     }
-    // Copying a file in File Explorer puts a CF_HDROP path list on the
-    // clipboard, not a bitmap, so fall back to loading the file itself.
+    // File Explorer copies a file as a CF_HDROP path list, not a bitmap.
     for (const path of await readClipboardImagePaths()) {
       const file = await readImageAtPath(path);
       if (file) {
         await addImageLayer(file.blob, file.name);
         return;
       }
+    }
+    // Last resort: the browser build cannot reach the system clipboard.
+    if (internalClipboard.canvas) {
+      const blob = await canvasToBlob(internalClipboard.canvas);
+      if (blob) await addImageLayer(blob, "Pasted");
     }
   }, [addImageLayer]);
 
@@ -424,10 +440,7 @@ export function AppShell() {
         e.preventDefault();
         e.stopPropagation();
       }
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
+      if (isTextEntry(e.target)) return;
       const toolMap: Record<string, ToolId> = {
         a: "cursor",
         v: "move",

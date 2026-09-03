@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Filter } from "../engine/filters/adjustments";
 import { beginFilter, previewFilter, revertFilter, type FilterTarget } from "../engine/filters/apply";
 import type { Layer } from "../engine/document/types";
-import { Modal } from "./ui/Modal";
+import { CanvasClearModal } from "./ui/CanvasClearModal";
 import { Slider } from "./ui/Slider";
 
 export interface FilterParam {
@@ -58,7 +58,7 @@ export function FilterDialog({ spec, layer, scopedToSelection, onApply, onClose 
   }, [filter]);
 
   return (
-    <Modal title={spec.name} onClose={onClose} width={380}>
+    <CanvasClearModal title={spec.name} onClose={onClose} width={340}>
       <div className="space-y-4 text-[11px]">
         {spec.params.length === 0 && (
           <p className="text-text-muted">
@@ -101,7 +101,7 @@ export function FilterDialog({ spec, layer, scopedToSelection, onApply, onClose 
           </button>
         </div>
       </div>
-    </Modal>
+    </CanvasClearModal>
   );
 }
 

@@ -373,6 +373,56 @@ const checks = {
     if (!same(before, afterCancel)) problems.push('Cancel left the preview applied');
     return problems;
   },
+  /** Undo must reverse a single brush stroke and leave earlier ones alone. */
+  async 'undo-brush'(page) {
+    await tool(page, 'Brush');
+    await setBrushSize(page, 50);
+    await drag(page, [0.2, 0.35], [0.45, 0.35], 20);
+    await sleep(400);
+    await drag(page, [0.2, 0.65], [0.45, 0.65], 20);
+    await sleep(400);
+
+    let [first, second] = await samplePixels(page, [[0.3, 0.35], [0.3, 0.65]]);
+    if (!isDark(first) || !isDark(second)) return ['both strokes should have painted'];
+
+    await page.keyboard.press('Control+z');
+    await sleep(700);
+    [first, second] = await samplePixels(page, [[0.3, 0.35], [0.3, 0.65]]);
+
+    const problems = [];
+    if (isDark(second)) problems.push('one undo did not remove the second stroke');
+    if (!isDark(first)) problems.push('one undo removed the first stroke too - strokes are coalescing');
+
+    await page.keyboard.press('Control+Shift+z');
+    await sleep(700);
+    const [redone] = await samplePixels(page, [[0.3, 0.65]]);
+    if (!isDark(redone)) problems.push('redo did not put the stroke back');
+    return problems;
+  },
+
+  /** Undo must reverse an erase - the case reported broken. */
+  async 'undo-eraser'(page) {
+    await tool(page, 'Brush');
+    await setBrushSize(page, 70);
+    await drag(page, [0.2, 0.5], [0.7, 0.5], 25);
+    await sleep(500);
+
+    const [before] = await samplePixels(page, [[0.45, 0.5]]);
+    if (!isDark(before)) return ['the brush stroke did not paint, so the erase cannot be tested'];
+
+    await tool(page, 'Eraser');
+    await setBrushSize(page, 70);
+    await drag(page, [0.4, 0.5], [0.5, 0.5], 10);
+    await sleep(600);
+
+    const [erased] = await samplePixels(page, [[0.45, 0.5]]);
+    if (isDark(erased)) return ['the eraser did not erase, so undo cannot be tested'];
+
+    await page.keyboard.press('Control+z');
+    await sleep(800);
+    const [restored] = await samplePixels(page, [[0.45, 0.5]]);
+    return isDark(restored) ? [] : ['undo did not restore the erased pixels'];
+  },
 };
 
 /* --------------------------------------------------------------------- main */
