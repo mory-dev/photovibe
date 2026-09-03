@@ -14,6 +14,9 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55" onMouseDown={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className="rounded-lg border border-border bg-surface-1 shadow-2xl"
         style={{ width }}
         onMouseDown={(e) => e.stopPropagation()}

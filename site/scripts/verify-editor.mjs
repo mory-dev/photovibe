@@ -96,6 +96,21 @@ async function samplePixels(page, points) {
 
 const isDark = (c) => c.r < 90 && c.g < 90 && c.b < 90;
 
+/** Opens Image > <submenu> > <item> and confirms the dialog if it has one. */
+async function applyMenuFilter(page, submenu, item) {
+  await page.getByRole('button', { name: 'Image', exact: true }).click();
+  await sleep(250);
+  await page.getByRole('menuitem', { name: submenu, exact: true }).click();
+  await sleep(250);
+  await page.getByRole('menuitem', { name: item, exact: true }).click();
+  await sleep(600);
+  const apply = page.getByRole('button', { name: 'Apply', exact: true });
+  if (await apply.count()) {
+    await apply.click();
+    await sleep(800);
+  }
+}
+
 async function setBrushSize(page, value) {
   const size = page.locator('aside input[type="range"]').first();
   await size.fill(String(value));
@@ -290,6 +305,72 @@ const checks = {
     const problems = [];
     if (isDark(afterCut)) problems.push('Ctrl+X left the pixels in place');
     if (layersAfter <= layersBefore) problems.push('Ctrl+V did not add a layer');
+    return problems;
+  },
+
+  /** #12 - Invert applies to the whole layer when nothing is selected. */
+  async 'filter-whole-layer'(page) {
+    const [before] = await samplePixels(page, [[0.5, 0.5]]);
+    await applyMenuFilter(page, 'Adjustments', 'Invert');
+    const [after] = await samplePixels(page, [[0.5, 0.5]]);
+    return before.r === after.r && before.g === after.g && before.b === after.b
+      ? ['Invert did not change the layer']
+      : [];
+  },
+
+  /** #12 - and only inside the selection when there is one. */
+  async 'filter-selection-only'(page) {
+    await tool(page, 'Marquee');
+    await drag(page, [0.35, 0.3], [0.65, 0.7]);
+
+    const [insideBefore, outsideBefore] = await samplePixels(page, [
+      [0.5, 0.5],
+      [0.85, 0.5],
+    ]);
+
+    await applyMenuFilter(page, 'Adjustments', 'Invert');
+
+    const [insideAfter, outsideAfter] = await samplePixels(page, [
+      [0.5, 0.5],
+      [0.85, 0.5],
+    ]);
+
+    const same = (a, b) => a.r === b.r && a.g === b.g && a.b === b.b;
+    const problems = [];
+    if (same(insideBefore, insideAfter)) problems.push('the selection was not inverted');
+    if (!same(outsideBefore, outsideAfter)) problems.push('the filter leaked outside the selection');
+    return problems;
+  },
+
+  /**
+   * #12 - the dialog previews live on the canvas, and Cancel must put the
+   * original pixels back rather than leaving the preview behind.
+   */
+  async 'filter-preview-and-cancel'(page) {
+    const [before] = await samplePixels(page, [[0.5, 0.5]]);
+
+    await page.getByRole('button', { name: 'Image', exact: true }).click();
+    await sleep(250);
+    await page.getByRole('menuitem', { name: 'Adjustments', exact: true }).click();
+    await sleep(250);
+    await page.getByRole('menuitem', { name: 'Hue / Saturation…', exact: true }).click();
+    await sleep(600);
+
+    const dialog = page.getByRole('dialog');
+    const lightness = dialog.locator('input[type="range"]').nth(2);
+    await lightness.fill('-90');
+    await lightness.dispatchEvent('input');
+    await sleep(900);
+    const [previewed] = await samplePixels(page, [[0.5, 0.5]]);
+
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await sleep(800);
+    const [afterCancel] = await samplePixels(page, [[0.5, 0.5]]);
+
+    const same = (a, b) => a.r === b.r && a.g === b.g && a.b === b.b;
+    const problems = [];
+    if (same(before, previewed)) problems.push('the dialog did not preview on the canvas');
+    if (!same(before, afterCancel)) problems.push('Cancel left the preview applied');
     return problems;
   },
 };

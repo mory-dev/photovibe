@@ -9,6 +9,10 @@ import { OptionsBar } from "../components/OptionsBar";
 import { SplashScreen } from "../components/SplashScreen";
 import { StatusBar } from "../components/StatusBar";
 import { Toolbar, type ToolId } from "../components/Toolbar";
+import { FilterDialog, type FilterSpec } from "../components/FilterDialog";
+import type { Filter } from "../engine/filters/adjustments";
+import { beginFilter, previewFilter } from "../engine/filters/apply";
+import { ADJUSTMENTS, EFFECTS } from "../engine/filters/catalogue";
 import { canvasToBlob, clearSelectionRegion, copySelectionRegion } from "../engine/pixels/clipboard-region";
 import { selectionStore } from "../engine/selections/selection-store";
 import { useSelectionGeneration } from "../hooks/use-selection";
@@ -69,6 +73,7 @@ export function AppShell() {
   // tracks whether a selection exists.
   useSelectionGeneration();
   const hasSelection = !!selectionStore.mask;
+  const canFilter = !!activeLayer && activeLayer.kind !== "adjustment";
   const saveDocument = useDocumentStore((s) => s.saveDocument);
   const saveDocumentAs = useDocumentStore((s) => s.saveDocumentAs);
   const resizeImage = useDocumentStore((s) => s.resizeImage);
@@ -92,6 +97,7 @@ export function AppShell() {
   const [showNew, setShowNew] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterSpec | null>(null);
   const fittedDocRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -173,6 +179,19 @@ export function AppShell() {
         clearSelectionRegion(activeLayer);
         touchPixels();
       }
+    },
+    [activeLayer, beginStroke, touchPixels],
+  );
+
+  const runFilter = useCallback(
+    (spec: FilterSpec, filter: Filter) => {
+      if (!activeLayer) return;
+      // FilterDialog has already put the original pixels back, so the history
+      // entry opens on the unfiltered state.
+      beginStroke(spec.name);
+      const target = beginFilter(activeLayer);
+      if (target) previewFilter(target, filter);
+      touchPixels();
     },
     [activeLayer, beginStroke, touchPixels],
   );
@@ -274,8 +293,25 @@ export function AppShell() {
       {
         label: "Image",
         items: [
-          { label: "Adjust…", shortcut: "Ctrl+Alt+I", action: () => setShowImageSize(true) },
-          { label: "Image Size…", action: () => setShowImageSize(true) },
+          { label: "Image Size…", shortcut: "Ctrl+Alt+I", action: () => setShowImageSize(true) },
+          { separator: true },
+          {
+            label: "Adjustments",
+            disabled: !canFilter,
+            items: ADJUSTMENTS.map((spec) => ({
+              label: spec.params.length ? `${spec.name}…` : spec.name,
+              action: () => setActiveFilter(spec),
+            })),
+          },
+          {
+            label: "Filters",
+            disabled: !canFilter,
+            items: EFFECTS.map((spec) => ({
+              label: `${spec.name}…`,
+              action: () => setActiveFilter(spec),
+            })),
+          },
+          { separator: true },
           { label: "Canvas Size…", disabled: true },
           { label: "Rotate Canvas", disabled: true },
           { label: "Flip Horizontal", disabled: true },
@@ -349,6 +385,7 @@ export function AppShell() {
       handleOpen,
       handleCopy,
       hasSelection,
+      canFilter,
       handlePaste,
       saveDocument,
       saveDocumentAs,
@@ -583,6 +620,15 @@ export function AppShell() {
         />
       )}
       {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
+      {activeFilter && activeLayer && (
+        <FilterDialog
+          spec={activeFilter}
+          layer={activeLayer}
+          scopedToSelection={hasSelection}
+          onApply={(filter) => runFilter(activeFilter, filter)}
+          onClose={() => setActiveFilter(null)}
+        />
+      )}
     </div>
   );
 }
