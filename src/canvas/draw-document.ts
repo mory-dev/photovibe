@@ -99,6 +99,11 @@ export function hitTestLayer(document: Document, docX: number, docY: number): La
     const width = source.width * scaleX;
     const height = source.height * scaleY;
     if (docX < x || docY < y || docX > x + width || docY > y + height) continue;
+    // Text rasters are mostly transparent between glyphs, so a per-pixel alpha
+    // test makes them slip out from under the cursor. Their bounding box is the
+    // grabbable area instead.
+    if (layer.kind === "text" || layer.role === "text") return layer;
+
     const localX = (docX - x) / scaleX;
     const localY = (docY - y) / scaleY;
     if (source instanceof HTMLCanvasElement && sampleCanvasAlpha(source, localX, localY) < 10) {
