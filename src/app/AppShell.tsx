@@ -9,11 +9,19 @@ import { OptionsBar } from "../components/OptionsBar";
 import { SplashScreen } from "../components/SplashScreen";
 import { StatusBar } from "../components/StatusBar";
 import { Toolbar, type ToolId } from "../components/Toolbar";
+import { canvasToBlob, clearSelectionRegion, copySelectionRegion } from "../engine/pixels/clipboard-region";
 import { selectionStore } from "../engine/selections/selection-store";
-import { listSystemFonts, openImagePath, readClipboardImage, sampleScreenColor } from "../lib/native";
-import { useDocumentStore } from "../store/document-store";
+import { useSelectionGeneration } from "../hooks/use-selection";
+import { listSystemFonts, openImagePath, readClipboardImage, sampleScreenColor, writeClipboardImage } from "../lib/native";
+import { useActiveLayer, useDocumentStore } from "../store/document-store";
 import { useEditorStore } from "../store/editor-store";
 import { useViewportStore } from "../store/viewport-store";
+
+/**
+ * Cut and Copy keep the region here as well as on the system clipboard, so a
+ * Paste inside Photovibe is exact rather than a PNG round-trip.
+ */
+const internalClipboard: { canvas: HTMLCanvasElement | null } = { canvas: null };
 
 const SPLASH_MIN_MS = 1200;
 const SKELETON_MS = 350;
@@ -46,6 +54,13 @@ export function AppShell() {
   const setSelection = useDocumentStore((s) => s.setSelection);
   const selectAll = useDocumentStore((s) => s.selectAll);
   const addImageLayer = useDocumentStore((s) => s.addImageLayer);
+  const beginStroke = useDocumentStore((s) => s.beginStroke);
+  const touchPixels = useDocumentStore((s) => s.touchPixels);
+  const activeLayer = useActiveLayer();
+  // selectionStore is not a React store; this subscribes so menu enablement
+  // tracks whether a selection exists.
+  useSelectionGeneration();
+  const hasSelection = !!selectionStore.mask;
   const saveDocument = useDocumentStore((s) => s.saveDocument);
   const saveDocumentAs = useDocumentStore((s) => s.saveDocumentAs);
   const resizeImage = useDocumentStore((s) => s.resizeImage);
@@ -132,7 +147,37 @@ export function AppShell() {
     setShowNew(true);
   }, []);
 
+  const handleCopy = useCallback(
+    async (cut: boolean) => {
+      if (!activeLayer || !selectionStore.mask) return;
+
+      const region = copySelectionRegion(activeLayer);
+      if (!region) return;
+
+      // Keep the canvas in process so Paste round-trips without re-encoding,
+      // and mirror it onto the system clipboard for other applications.
+      internalClipboard.canvas = region;
+      const blob = await canvasToBlob(region);
+      if (blob) await writeClipboardImage(new Uint8Array(await blob.arrayBuffer()));
+
+      if (cut) {
+        beginStroke("Cut");
+        clearSelectionRegion(activeLayer);
+        touchPixels();
+      }
+    },
+    [activeLayer, beginStroke, touchPixels],
+  );
+
   const handlePaste = useCallback(async () => {
+    // Prefer the region we cut or copied ourselves; it is pixel-exact.
+    if (internalClipboard.canvas) {
+      const blob = await canvasToBlob(internalClipboard.canvas);
+      if (blob) {
+        await addImageLayer(blob, "Pasted");
+        return;
+      }
+    }
     const clip = await readClipboardImage();
     if (!clip) return;
     await addImageLayer(clip.blob, "Pasted");
@@ -192,8 +237,18 @@ export function AppShell() {
             action: redo,
           },
           { separator: true },
-          { label: "Cut", shortcut: "Ctrl+X", disabled: true },
-          { label: "Copy", shortcut: "Ctrl+C", disabled: true },
+          {
+            label: "Cut",
+            shortcut: "Ctrl+X",
+            disabled: !hasSelection,
+            action: () => void handleCopy(true),
+          },
+          {
+            label: "Copy",
+            shortcut: "Ctrl+C",
+            disabled: !hasSelection,
+            action: () => void handleCopy(false),
+          },
           { label: "Paste", shortcut: "Ctrl+V", action: () => void handlePaste() },
         ],
       },
@@ -273,6 +328,8 @@ export function AppShell() {
     [
       handleNewDocument,
       handleOpen,
+      handleCopy,
+      hasSelection,
       handlePaste,
       saveDocument,
       saveDocumentAs,
@@ -373,6 +430,11 @@ export function AppShell() {
         duplicateActiveLayer();
         return;
       }
+      if (e.ctrlKey && (key === "c" || key === "x") && selectionStore.mask) {
+        e.preventDefault();
+        void handleCopy(key === "x");
+        return;
+      }
       if (e.ctrlKey && key === "v") {
         e.preventDefault();
         void handlePaste();
@@ -437,6 +499,7 @@ export function AppShell() {
   }, [
     handleNewDocument,
     handleOpen,
+    handleCopy,
     handlePaste,
     selectTool,
     saveDocument,

@@ -20,6 +20,20 @@ export async function pinCursor(x: number, y: number): Promise<void> {
   }
 }
 
+/**
+ * Puts a PNG on the system clipboard. Returns false in the browser, where the
+ * caller falls back to the in-process clipboard.
+ */
+export async function writeClipboardImage(bytes: Uint8Array): Promise<boolean> {
+  try {
+    const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
+    await writeImage(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function listSystemFonts(): Promise<string[]> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");

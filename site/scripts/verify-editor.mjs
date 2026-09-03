@@ -260,6 +260,34 @@ const checks = {
     if (!isDark(moved)) problems.push('paint did not land inside the moved selection');
     return problems;
   },
+
+  /**
+   * #9 - Ctrl+X must clear the selected pixels, and Ctrl+V must bring them back
+   * as a new layer.
+   */
+  async 'cut-and-paste'(page) {
+    await tool(page, 'Brush');
+    await setBrushSize(page, 60);
+    await drag(page, [0.2, 0.5], [0.34, 0.5], 20);
+
+    await tool(page, 'Marquee');
+    await drag(page, [0.14, 0.38], [0.4, 0.62]);
+
+    const layersBefore = await page.locator('aside ul li').count();
+
+    await page.keyboard.press('Control+x');
+    await sleep(900);
+    const [afterCut] = await samplePixels(page, [[0.27, 0.5]]);
+
+    await page.keyboard.press('Control+v');
+    await sleep(1200);
+    const layersAfter = await page.locator('aside ul li').count();
+
+    const problems = [];
+    if (isDark(afterCut)) problems.push('Ctrl+X left the pixels in place');
+    if (layersAfter <= layersBefore) problems.push('Ctrl+V did not add a layer');
+    return problems;
+  },
 };
 
 /* --------------------------------------------------------------------- main */
