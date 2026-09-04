@@ -94,6 +94,7 @@ export function AppShell() {
   const saveDocument = useDocumentStore((s) => s.saveDocument);
   const saveDocumentAs = useDocumentStore((s) => s.saveDocumentAs);
   const resizeImage = useDocumentStore((s) => s.resizeImage);
+  const flipCanvas = useDocumentStore((s) => s.flipCanvas);
   const zoom = useViewportStore((s) => s.zoom);
   const fit = useViewportStore((s) => s.fit);
   const reset = useViewportStore((s) => s.reset);
@@ -332,8 +333,8 @@ export function AppShell() {
           { separator: true },
           { label: "Canvas Size…", disabled: true },
           { label: "Rotate Canvas", disabled: true },
-          { label: "Flip Horizontal", disabled: true },
-          { label: "Flip Vertical", disabled: true },
+          { label: "Flip Horizontal", disabled: !document, action: () => flipCanvas("horizontal") },
+          { label: "Flip Vertical", disabled: !document, action: () => flipCanvas("vertical") },
         ],
       },
       {
@@ -425,6 +426,7 @@ export function AppShell() {
       canRedo,
       undoLabel,
       redoLabel,
+      flipCanvas,
     ],
   );
 

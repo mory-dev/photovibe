@@ -29,6 +29,7 @@ import {
 } from "../engine/pixels/generate";
 import { flattenToBytes } from "../engine/pixels/export-flat";
 import { resizeDocument } from "../engine/pixels/resize";
+import { flipDocument, type FlipDirection } from "../engine/pixels/flip";
 import { pickSavePath, saveBytes } from "../lib/native";
 import { selectionStore } from "../engine/selections/selection-store";
 import { pixelStore } from "../engine/pixels/pixel-store";
@@ -70,6 +71,7 @@ interface DocumentStore {
   addTextLayer: (x: number, y: number, text: string, fontFamily: string, fontSize: number, color: Color) => void;
   updateTextLayer: (layerId: string, text: string, fontFamily: string, fontSize: number, color: Color) => void;
   resizeImage: (width: number, height: number) => void;
+  flipCanvas: (direction: FlipDirection) => void;
   saveDocument: () => Promise<void>;
   saveDocumentAs: () => Promise<void>;
   undo: () => void;
@@ -492,6 +494,14 @@ export const useDocumentStore = create<DocumentStore>((set, get) => {
       mutate("Image size", (document) => {
         selectionStore.clear();
         return resizeDocument(document, width, height);
+      });
+    },
+
+    flipCanvas: (direction) => {
+      mutate(direction === "horizontal" ? "Flip Horizontal" : "Flip Vertical", (document) => {
+        const next = flipDocument(document, direction);
+        selectionStore.flip(direction, document.width, document.height);
+        return { ...next, selection: selectionStore.toDocumentSelection() };
       });
     },
 
