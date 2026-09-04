@@ -1,4 +1,5 @@
 import type { Selection } from "../document/types";
+import { flipCanvas, type FlipDirection } from "../pixels/flip";
 
 export type SelectionPath =
   | { kind: "rect"; x: number; y: number; width: number; height: number }
@@ -58,6 +59,26 @@ class SelectionStore {
     this.bump();
   }
 
+  /** Mirrors the active mask and its document-space position. */
+  flip(direction: FlipDirection, documentWidth: number, documentHeight: number): void {
+    if (!this.mask) return;
+
+    const mask = this.mask;
+    this.mask = flipCanvas(mask, direction);
+    this.path = this.path ? mirrorSelectionPath(this.path, mask.width, mask.height, direction) : null;
+
+    if (direction === "horizontal") {
+      this.offsetX = documentWidth - this.offsetX - mask.width;
+      this.floatX = -this.floatX;
+    } else {
+      this.offsetY = documentHeight - this.offsetY - mask.height;
+      this.floatY = -this.floatY;
+    }
+
+    if (this.floating) this.floating = flipCanvas(this.floating, direction);
+    this.bump();
+  }
+
   toDocumentSelection(): Selection | null {
     if (!this.mask) return null;
     return { mask: null, bounds: maskBounds(this.mask, this.offsetX, this.offsetY) };
@@ -72,6 +93,39 @@ class SelectionStore {
     if (!ctx) return false;
     return ctx.getImageData(x, y, 1, 1).data[3] > 10;
   }
+}
+
+export function mirrorSelectionPath(
+  path: SelectionPath,
+  width: number,
+  height: number,
+  direction: FlipDirection,
+): SelectionPath {
+  const mirrorPoints = (points: Array<{ x: number; y: number }>) =>
+    points.map((point) => ({
+      x: direction === "horizontal" ? width - point.x : point.x,
+      y: direction === "vertical" ? height - point.y : point.y,
+    }));
+
+  if (path.kind === "rect") {
+    return {
+      ...path,
+      x: direction === "horizontal" ? width - path.x - path.width : path.x,
+      y: direction === "vertical" ? height - path.y - path.height : path.y,
+    };
+  }
+
+  if (path.kind === "lasso") {
+    return { ...path, points: mirrorPoints(path.points) };
+  }
+
+  return {
+    ...path,
+    points: mirrorPoints(path.points),
+    contours: path.contours?.map(mirrorPoints),
+    x: direction === "horizontal" ? width - path.x - path.width : path.x,
+    y: direction === "vertical" ? height - path.y - path.height : path.y,
+  };
 }
 
 export function createMaskCanvas(width: number, height: number): HTMLCanvasElement {
